@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>TEAM LỘC – MC</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{font-family:Arial;background:#0A2540;color:#fff;text-align:center}
+.box{max-width:800px;margin:auto;padding:30px}
+h1{color:#FACC15}
+</style>
+</head>
+
+<body>
+<div class="box">
+  <h1 id="title"></h1>
+  <label>Số người có mặt:</label>
+  <select id="expected">
+    <option value="">-- chọn --</option>
+    ${[...Array(10)].map((_,i)=>`<option>${i+1}</option>`).join("")}
+  </select>
+
+  <h3 id="count"></h3>
+  <ul id="list"></ul>
+  <h2 id="result"></h2>
+</div>
+
+<script type="module">
+import { db } from './firebase.js';
+import { ref, onValue, update } from
+"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const team = new URLSearchParams(location.search).get("team");
+document.getElementById("title").innerText = `TEAM LỘC – BÀN SỐ ${team}`;
+
+const teamRef = ref(db, `teams/${team}`);
+
+document.getElementById("expected").onchange = e => {
+  update(teamRef, { expected: Number(e.target.value), status: "waiting" });
+};
+
+onValue(teamRef, snap => {
+  const d = snap.val();
+  if (!d) return;
+
+  const members = Object.values(d.members || {});
+  document.getElementById("list").innerHTML =
+    members.map(m=>`<li>${m}</li>`).join("");
+
+  document.getElementById("count").innerText =
+    `Đã tham gia: ${members.length}/${d.expected||"?"}`;
+
+  if (d.expected && members.length === d.expected && d.status !== "revealed") {
+    reveal();
+  }
+});
+
+function reveal(){
+  update(teamRef, { status: "revealed" });
+  const results = [
+    "🎉 LỘC ĐỒNG ĐỘI – 100.000/người",
+    "🔥 LỘC BỨT PHÁ – 1 người 500.000",
+    "🎁 LỘC ĐẶC BIỆT – 200.000/người"
+  ];
+  document.getElementById("result").innerText =
+    results[Math.floor(Math.random()*results.length)];
+}
+</script>
+</body>
+</html>
