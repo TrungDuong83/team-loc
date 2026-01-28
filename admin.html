@@ -2,32 +2,36 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>ADMIN – Cấu hình Team Lộc</title>
+<title>ADMIN – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family: Arial; background:#0A2540; color:#fff; }
+body { font-family: Arial; background:#0A2540; color:#fff }
 .box { max-width:600px; margin:auto; padding:30px }
-input, button { width:100%; padding:10px; margin-top:10px }
+input, button { width:100%; padding:12px; margin-top:10px; font-size:16px }
 button { background:#FACC15; border:none; font-weight:bold }
 table { width:100%; margin-top:20px; border-collapse:collapse }
 td, th { border:1px solid #555; padding:6px }
+.hidden { display:none }
 </style>
 </head>
 
 <body>
-<div class="box">
+<div class="box" id="loginBox">
+  <h2>🔐 ADMIN LOGIN</h2>
+  <input id="password" type="password" placeholder="Nhập mật khẩu">
+  <button onclick="login()">ĐĂNG NHẬP</button>
+</div>
+
+<div class="box hidden" id="adminBox">
   <h2>🎁 CẤU HÌNH GIẢI THƯỞNG</h2>
 
   <input id="title" placeholder="Tên giải (VD: Lộc Đồng)">
   <input id="content" placeholder="Nội dung (VD: 100.000/người)">
   <input id="weight" type="number" placeholder="Trọng số (VD: 3)">
-
   <button id="add">THÊM GIẢI</button>
 
   <table>
-    <thead>
-      <tr><th>Tên</th><th>Nội dung</th><th>Weight</th></tr>
-    </thead>
+    <thead><tr><th>Tên</th><th>Nội dung</th><th>Weight</th></tr></thead>
     <tbody id="list"></tbody>
   </table>
 </div>
@@ -37,10 +41,19 @@ import { db } from "./firebase.js";
 import { ref, push, onValue } from
   "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const rewardRef = ref(db, "config/rewards");
-const list = document.getElementById("list");
+const ADMIN_PASS = "YEP2026"; // đổi tại đây
 
-document.getElementById("add").onclick = async () => {
+window.login = () => {
+  if (password.value === ADMIN_PASS) {
+    loginBox.classList.add("hidden");
+    adminBox.classList.remove("hidden");
+  } else {
+    alert("Sai mật khẩu");
+  }
+};
+
+const rewardRef = ref(db, "config/rewards");
+add.onclick = async () => {
   await push(rewardRef, {
     title: title.value,
     content: content.value,
@@ -51,12 +64,7 @@ document.getElementById("add").onclick = async () => {
 onValue(rewardRef, snap => {
   list.innerHTML = "";
   Object.values(snap.val() || {}).forEach(r => {
-    list.innerHTML += `
-      <tr>
-        <td>${r.title}</td>
-        <td>${r.content}</td>
-        <td>${r.weight}</td>
-      </tr>`;
+    list.innerHTML += `<tr><td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td></tr>`;
   });
 });
 </script>

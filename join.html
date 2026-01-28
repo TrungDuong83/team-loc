@@ -2,77 +2,74 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>TEAM LỘC – THAM GIA</title>
+<title>TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { font-family: Arial; background:#06223A; color:#fff; text-align:center }
 .box { max-width:420px; margin:auto; padding:30px }
-input, button {
-  width:100%; padding:12px; font-size:18px; margin-top:12px;
-}
-button { background:#FACC15; border:none; font-weight:bold; cursor:pointer }
-.status { margin-top:10px; }
+input, button { width:100%; padding:12px; font-size:18px; margin-top:12px }
+button { background:#FACC15; border:none; font-weight:bold }
 </style>
 </head>
 
 <body>
 <div class="box">
   <h2 id="title"></h2>
-  <div id="countInfo"></div>
+  <div id="count"></div>
 
   <input id="name" placeholder="Nhập tên của bạn">
-  <button id="joinBtn">THAM GIA TEAM</button>
+  <button id="joinBtn">THAM GIA</button>
 
-  <div class="status" id="status"></div>
-  <div class="status" id="result"></div>
+  <div id="status"></div>
+  <div id="result"></div>
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, push, onValue } from
+import { ref, push, onValue, get } from
   "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const team = new URLSearchParams(location.search).get("team");
-document.getElementById("title").innerText = `TEAM LỘC – BÀN SỐ ${team}`;
-
 const teamRef = ref(db, `teams/${team}`);
-const btn = document.getElementById("joinBtn");
-const status = document.getElementById("status");
-const resultBox = document.getElementById("result");
-const countInfo = document.getElementById("countInfo");
+title.innerText = `TEAM LỘC – BÀN ${team}`;
 
 let joined = false;
 
-/* realtime update */
 onValue(teamRef, snap => {
   const d = snap.val();
   if (!d) return;
 
-  const count = Object.keys(d.members || {}).length;
-  countInfo.innerText = `Đã tham gia: ${count} / ${d.expected || "?"}`;
+  const c = Object.keys(d.members || {}).length;
+  count.innerText = `Đã tham gia: ${c}/${d.expected || "?"}`;
 
-  if (d.status === "locked") {
-    btn.disabled = true;
-    status.innerText = "⛔ Bàn đã hoàn tất Team Lộc";
+  if (d.state !== "enabled") {
+    joinBtn.disabled = true;
+    status.innerText = "⏳ Bàn chưa được mở";
   }
 
-  if (d.status === "revealed" && d.result) {
-    resultBox.innerHTML =
-      `🎉 <b>${d.result.title}</b><br>${d.result.content}`;
+  if (d.state === "revealed" && d.result) {
+    result.innerHTML = `🎉 <b>${d.result.title}</b><br>${d.result.content}`;
   }
 });
 
-btn.addEventListener("click", async () => {
+joinBtn.onclick = async () => {
   if (joined) return;
 
-  const name = document.getElementById("name").value.trim();
-  if (!name) return alert("Vui lòng nhập tên");
+  const n = name.value.trim();
+  if (!n) return alert("Nhập tên");
 
-  await push(ref(db, `teams/${team}/members`), name);
+  const snap = await get(teamRef);
+  const data = snap.val();
+  const members = Object.values(data.members || {});
+  if (members.includes(n)) return alert("Tên đã tồn tại");
+
+  if (data.state !== "enabled") return alert("Bàn chưa mở");
+
+  await push(ref(db, `teams/${team}/members`), n);
   joined = true;
-  btn.disabled = true;
-  status.innerText = "✅ Bạn đã tham gia, vui lòng chờ kết quả";
-});
+  joinBtn.disabled = true;
+  status.innerText = "✅ Đã tham gia";
+};
 </script>
 </body>
 </html>
