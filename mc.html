@@ -5,77 +5,115 @@
 <title>TEAM LỘC – MC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{font-family:Arial;background:#0A2540;color:#fff;text-align:center}
-.box{max-width:800px;margin:auto;padding:30px}
-h1{color:#FACC15}
+body { font-family: Arial; background:#0A2540; color:#fff; }
+.box { max-width:900px; margin:auto; padding:30px }
+h1 { color:#FACC15 }
+button { padding:10px 20px; margin-top:10px; font-size:16px }
+.countdown { font-size:60px; color:#FACC15; text-align:center }
+.result { margin-top:20px; font-size:20px }
+table { width:100%; margin-top:20px; border-collapse:collapse }
+td,th { border:1px solid #555; padding:6px }
 </style>
 </head>
 
 <body>
 <div class="box">
   <h1 id="title"></h1>
+
   <label>Số người có mặt:</label>
   <select id="expected">
-  <option value="">-- chọn --</option>
-  <option value="1">1</option>
-  <option value="2">2</option>
-  <option value="3">3</option>
-  <option value="4">4</option>
-  <option value="5">5</option>
-  <option value="6">6</option>
-  <option value="7">7</option>
-  <option value="8">8</option>
-  <option value="9">9</option>
-  <option value="10">10</option>
-</select>
-
+    <option value="">-- chọn --</option>
+    <option>1</option><option>2</option><option>3</option><option>4</option>
+    <option>5</option><option>6</option><option>7</option><option>8</option>
+    <option>9</option><option>10</option>
+  </select>
 
   <h3 id="count"></h3>
   <ul id="list"></ul>
-  <h2 id="result"></h2>
+
+  <h3>🎁 Cơ cấu giải thưởng</h3>
+  <input id="rewardTitle" placeholder="Tên giải (VD: LỘC ĐỒNG ĐỘI)">
+  <input id="rewardContent" placeholder="Nội dung (VD: 100.000/người)">
+  <button id="setResult">MỞ TEAM LỘC</button>
+
+  <div class="countdown" id="countdown"></div>
+  <div class="result" id="result"></div>
+
+  <h3>📊 KẾT QUẢ CÁC BÀN</h3>
+  <table>
+    <thead><tr><th>Bàn</th><th>Kết quả</th></tr></thead>
+    <tbody id="summary"></tbody>
+  </table>
+
+  <button id="reset">RESET BÀN</button>
 </div>
 
 <script type="module">
-import { db } from './firebase.js';
-import { ref, onValue, update } from
-"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { db } from "./firebase.js";
+import { ref, onValue, update, remove } from
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const team = new URLSearchParams(location.search).get("team");
 document.getElementById("title").innerText = `TEAM LỘC – BÀN SỐ ${team}`;
 
 const teamRef = ref(db, `teams/${team}`);
+const expectedSel = document.getElementById("expected");
+const countdownEl = document.getElementById("countdown");
 
-document.getElementById("expected").onchange = e => {
-  update(teamRef, { expected: Number(e.target.value), status: "waiting" });
-};
+expectedSel.onchange = () =>
+  update(teamRef, { expected: Number(expectedSel.value), status: "waiting" });
 
 onValue(teamRef, snap => {
   const d = snap.val();
   if (!d) return;
 
   const members = Object.values(d.members || {});
-  document.getElementById("list").innerHTML =
-    members.map(m=>`<li>${m}</li>`).join("");
-
   document.getElementById("count").innerText =
-    `Đã tham gia: ${members.length}/${d.expected||"?"}`;
+    `Đã tham gia: ${members.length}/${d.expected || "?"}`;
+  document.getElementById("list").innerHTML =
+    members.map(m => `<li>${m}</li>`).join("");
 
-  if (d.expected && members.length === d.expected && d.status !== "revealed") {
-    reveal();
+  if (d.status === "counting") startCountdown();
+  if (d.status === "revealed") {
+    document.getElementById("result").innerHTML =
+      `🎉 <b>${d.result.title}</b> – ${d.result.content}`;
   }
 });
 
-function reveal(){
-  update(teamRef, { status: "revealed" });
-  const results = [
-    "🎉 LỘC ĐỒNG ĐỘI – 100.000/người",
-    "🔥 LỘC BỨT PHÁ – 1 người 500.000",
-    "🎁 LỘC ĐẶC BIỆT – 200.000/người"
-  ];
-  document.getElementById("result").innerText =
-    results[Math.floor(Math.random()*results.length)];
+/* countdown */
+function startCountdown() {
+  let i = 3;
+  countdownEl.innerText = i;
+  const t = setInterval(() => {
+    i--;
+    countdownEl.innerText = i || "🍀";
+    if (i <= 0) clearInterval(t);
+  }, 1000);
 }
+
+/* mở lộc */
+document.getElementById("setResult").onclick = async () => {
+  const title = rewardTitle.value;
+  const content = rewardContent.value;
+  if (!title || !content) return alert("Nhập cơ cấu giải");
+
+  await update(teamRef, {
+    status: "counting"
+  });
+
+  setTimeout(async () => {
+    await update(teamRef, {
+      status: "revealed",
+      result: { title, content }
+    });
+  }, 3500);
+};
+
+/* reset */
+document.getElementById("reset").onclick = async () => {
+  if (!confirm("Reset bàn này?")) return;
+  await remove(teamRef);
+};
 </script>
 </body>
 </html>
-
