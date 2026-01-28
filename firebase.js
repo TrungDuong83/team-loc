@@ -1,5 +1,3 @@
-<script type="module">
-  // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
@@ -15,8 +13,3 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
-
-
-</script>
-
-
