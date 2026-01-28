@@ -5,10 +5,14 @@
 <title>TEAM LỘC – THAM GIA</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{font-family:Arial;background:#06223A;color:#fff;text-align:center}
-.box{max-width:400px;margin:auto;padding:30px}
-input,button{width:100%;padding:12px;font-size:18px;margin-top:12px}
-button{background:#FACC15;border:none;font-weight:bold}
+body { font-family: Arial; background:#06223A; color:#fff; text-align:center }
+.box { max-width:420px; margin:auto; padding:30px }
+input, button {
+  width:100%; padding:12px; font-size:18px; margin-top:12px;
+}
+button {
+  background:#FACC15; border:none; font-weight:bold; cursor:pointer;
+}
 </style>
 </head>
 
@@ -16,33 +20,50 @@ button{background:#FACC15;border:none;font-weight:bold}
 <div class="box">
   <h2 id="title"></h2>
   <input id="name" placeholder="Nhập tên của bạn">
-  <button onclick="join()">THAM GIA TEAM</button>
+  <button id="joinBtn">THAM GIA TEAM</button>
   <p id="status"></p>
 </div>
 
 <script type="module">
-import { db } from './firebase.js';
-import { ref, set, get, push } from
-"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { db } from "./firebase.js";
+  import { ref, push, get } from
+    "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const team = new URLSearchParams(location.search).get("team");
-document.getElementById("title").innerText = `TEAM LỘC – BÀN SỐ ${team}`;
+  const team = new URLSearchParams(location.search).get("team");
+  document.getElementById("title").innerText = `TEAM LỘC – BÀN SỐ ${team}`;
 
-window.join = async () => {
-  const name = document.getElementById("name").value.trim();
-  if (!name) return alert("Vui lòng nhập tên");
+  const btn = document.getElementById("joinBtn");
+  const status = document.getElementById("status");
 
-  const teamRef = ref(db, `teams/${team}`);
-  const snapshot = await get(teamRef);
-  const data = snapshot.val();
+  btn.addEventListener("click", async () => {
+    const name = document.getElementById("name").value.trim();
+    if (!name) {
+      alert("Vui lòng nhập tên");
+      return;
+    }
 
-  if (data?.status === "revealed")
-    return alert("Team đã mở lộc");
+    try {
+      const teamRef = ref(db, `teams/${team}`);
+      const snap = await get(teamRef);
+      const data = snap.val();
 
-  await push(ref(db, `teams/${team}/members`), name);
-  document.getElementById("status").innerText =
-    "✅ Đã tham gia. Vui lòng chờ trên màn hình chính.";
-};
+      if (data?.status === "revealed") {
+        alert("Team đã mở lộc");
+        return;
+      }
+
+      await push(ref(db, `teams/${team}/members`), name);
+
+      status.innerText =
+        "✅ Bạn đã tham gia. Vui lòng chờ trên màn hình chính.";
+      btn.disabled = true;
+
+    } catch (err) {
+      alert("Lỗi khi tham gia: " + err.message);
+      console.error(err);
+    }
+  });
 </script>
+
 </body>
 </html>
