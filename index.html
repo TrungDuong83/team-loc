@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>TEAM LỘC – Phòng CNTT & CĐS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Segoe UI, Arial, sans-serif;
+      background: linear-gradient(135deg, #0A2540, #06223A);
+      color: #fff;
+      margin: 0;
+      text-align: center;
+    }
+    .container {
+      max-width: 720px;
+      margin: auto;
+      padding: 30px 20px;
+    }
+    .box {
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 25px;
+      margin-top: 20px;
+    }
+    h1 { color: #FACC15; }
+    input {
+      width: 90%;
+      padding: 10px;
+      font-size: 16px;
+      margin: 6px 0;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      background: #FACC15;
+      color: #06223A;
+      border: none;
+      padding: 14px 28px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 30px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .hidden { display: none; }
+    .countdown {
+      font-size: 52px;
+      color: #FACC15;
+    }
+    .result {
+      font-size: 26px;
+      margin-top: 20px;
+      color: #FACC15;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <!-- SCREEN: INPUT NAMES -->
+  <div id="screen-names" class="box">
+    <h1>🍀 TEAM LỘC</h1>
+    <h2 id="teamTitle"></h2>
+    <p>Nhập đủ tên các thành viên để mở lộc</p>
+    <div id="nameInputs"></div>
+    <p id="statusText">⛔ Chưa đủ thành viên</p>
+    <button id="openBtn" disabled onclick="startLucky()">HÁI LỘC</button>
+  </div>
+
+  <!-- SCREEN: COUNTDOWN -->
+  <div id="screen-countdown" class="box hidden">
+    <h2>🍀 ĐANG MỞ LỘC 🍀</h2>
+    <div class="countdown" id="countNum">3</div>
+  </div>
+
+  <!-- SCREEN: RESULT -->
+  <div id="screen-result" class="box hidden">
+    <h2 id="resultTitle"></h2>
+    <div class="result" id="resultContent"></div>
+    <p>Chúc TEAM một năm mới gắn kết & bứt phá!</p>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
