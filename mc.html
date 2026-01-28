@@ -16,9 +16,19 @@ h1{color:#FACC15}
   <h1 id="title"></h1>
   <label>Số người có mặt:</label>
   <select id="expected">
-    <option value="">-- chọn --</option>
-    ${[...Array(10)].map((_,i)=>`<option>${i+1}</option>`).join("")}
-  </select>
+  <option value="">-- chọn --</option>
+  <option value="1">1</option>
+  <option value="2">2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+  <option value="5">5</option>
+  <option value="6">6</option>
+  <option value="7">7</option>
+  <option value="8">8</option>
+  <option value="9">9</option>
+  <option value="10">10</option>
+</select>
+
 
   <h3 id="count"></h3>
   <ul id="list"></ul>
@@ -68,3 +78,4 @@ function reveal(){
 </script>
 </body>
 </html>
+
