@@ -8,206 +8,257 @@
 <style>
 body{
   margin:0;
-  background:#7a0c0c;
+  min-height:100vh;
+  background:radial-gradient(circle at top,#b91c1c,#7a0c0c);
   font-family:Arial;
   color:#FFD966;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
-.container{
-  max-width:1400px;
-  margin:auto;
-  padding:24px;
+
+.card{
+  width:92%;
+  max-width:1200px;
+  background:linear-gradient(145deg,#6d0f0f,#3f0707);
+  border-radius:28px;
+  padding:28px;
+  box-shadow:0 25px 50px rgba(0,0,0,0.5);
 }
-h1,h2{margin:10px 0}
+
+h1{
+  text-align:center;
+  margin:0 0 20px;
+  font-size:36px;
+}
+
+.control-bar{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
 
 select,button{
-  padding:10px;
-  font-size:18px;
-  margin:6px;
+  font-size:20px;
+  padding:12px 18px;
+  border-radius:14px;
+  border:none;
 }
+
 button{
   background:#FFD966;
-  border:none;
+  color:#7a0c0c;
   font-weight:bold;
   cursor:pointer;
 }
 button:disabled{
-  opacity:0.4;
+  opacity:0.5;
   cursor:not-allowed;
 }
 
-/* MEMBER LIST */
-.member-list{
+.team-title{
+  text-align:center;
+  font-size:28px;
   margin-top:20px;
-  background:rgba(255,255,255,0.08);
-  padding:20px;
-  border-radius:16px;
-}
-.member-list ul{
-  list-style:none;
-  padding-left:0;
-}
-.member-list li{
-  text-align:left;
-  font-size:20px;
-  margin:6px 0;
 }
 
 /* POPUP */
 .popup{
   position:fixed;
-  top:0;left:0;right:0;bottom:0;
-  background:rgba(0,0,0,0.7);
+  inset:0;
+  background:rgba(0,0,0,0.8);
   display:none;
   align-items:center;
   justify-content:center;
-  z-index:10;
+  z-index:20;
 }
 .popup.show{display:flex}
+
 .popup-content{
   background:#5c0a0a;
-  padding:40px;
-  border-radius:24px;
+  padding:36px;
+  border-radius:28px;
+  width:90%;
+  max-width:900px;
   text-align:center;
-  min-width:420px;
+  position:relative;
 }
-.popup-content h2{
+
+.popup h2{
   font-size:36px;
+  margin:0 0 10px;
 }
+
 .countdown{
-  font-size:48px;
-  margin:20px 0;
+  font-size:56px;
+  margin:10px 0;
 }
+
+.member-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:20px 0;
+  text-align:left;
+}
+.member-grid.single{
+  grid-template-columns:1fr;
+}
+
+.member{
+  font-size:22px;
+}
+
 .result{
-  font-size:42px;
-  margin-top:20px;
+  font-size:36px;
   color:#b6ffcc;
+  margin-top:18px;
+}
+
+.close-btn{
+  margin-top:24px;
+  padding:12px 26px;
+  font-size:20px;
+  border-radius:14px;
+  background:#FFD966;
+  border:none;
+  cursor:pointer;
+}
+
+/* FIREWORK */
+.firework{
+  position:absolute;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  animation:explode 1s ease-out forwards;
+}
+@keyframes explode{
+  to{
+    transform:translate(var(--x),var(--y));
+    opacity:0;
+  }
 }
 </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="card">
+  <h1>🎤 MC – TEAM LỘC</h1>
 
-<h1>🎤 MC – TEAM LỘC</h1>
+  <div class="control-bar">
+    <select id="teamSelect"></select>
+    <button id="openBtn">MỞ BÀN</button>
+  </div>
 
-<div>
-  <select id="teamSelect"></select>
-  <button id="openBtn">MỞ BÀN</button>
-</div>
-
-<h2 id="teamTitle">Chưa mở bàn</h2>
-
-<div class="member-list">
-  <h3>👥 Danh sách thành viên</h3>
-  <ul id="memberList"></ul>
-</div>
-
+  <div class="team-title" id="teamTitle">Chưa mở bàn</div>
 </div>
 
 <!-- POPUP -->
-<div id="popup" class="popup">
+<div class="popup" id="popup">
   <div class="popup-content">
     <h2>🍀 TEAM LỘC 🍀</h2>
-    <div class="countdown" id="countdown">--</div>
-    <div class="result" id="result"></div>
+    <div class="countdown" id="countdown">60</div>
+
+    <div id="memberGrid" class="member-grid"></div>
+
+    <div class="result" id="resultText"></div>
+
+    <button class="close-btn" id="closePopup">ĐÓNG</button>
   </div>
 </div>
+
+<audio id="fireSound" src="https://assets.mixkit.co/sfx/preview/mixkit-fireworks-explosion-1703.mp3"></audio>
 
 <script type="module">
 import { db } from "./firebase.js";
 import { ref, get, set, onValue } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-/* ===== DOM ===== */
+const TIME_LIMIT = 60;
+
 const teamSelect = document.getElementById("teamSelect");
-const openBtn    = document.getElementById("openBtn");
-const teamTitle  = document.getElementById("teamTitle");
-const memberList = document.getElementById("memberList");
+const openBtn = document.getElementById("openBtn");
+const teamTitle = document.getElementById("teamTitle");
 
-const popup      = document.getElementById("popup");
-const countdownEl= document.getElementById("countdown");
-const resultEl   = document.getElementById("result");
+const popup = document.getElementById("popup");
+const countdownEl = document.getElementById("countdown");
+const memberGrid = document.getElementById("memberGrid");
+const resultText = document.getElementById("resultText");
+const closePopup = document.getElementById("closePopup");
+const fireSound = document.getElementById("fireSound");
 
-/* ===== STATE ===== */
 let activeTeamId = "";
 let timer = null;
 let revealed = false;
 
-/* ===== LOAD TEAMS ===== */
-onValue(ref(db,"config/teams"), snap=>{
+/* LOAD TEAMS */
+onValue(ref(db,"teams"), snap=>{
   teamSelect.innerHTML="";
   Object.entries(snap.val()||{}).forEach(([id,t])=>{
-    teamSelect.innerHTML+=`<option value="${id}">${t.name}</option>`;
+    const opt = document.createElement("option");
+    opt.value = id;
+    if(t.state==="revealed"){
+      opt.text = t.name+" (ĐÃ CHƠI)";
+      opt.disabled = true;
+    }else{
+      opt.text = t.name;
+    }
+    teamSelect.appendChild(opt);
   });
 });
 
-/* ===== OPEN TEAM ===== */
+/* OPEN TEAM */
 openBtn.onclick = async ()=>{
-  const teamId = String(teamSelect.value);
+  const teamId = teamSelect.value;
+  const teamSnap = await get(ref(db,`teams/${teamId}`));
+  if(teamSnap.val()?.state==="revealed"){
+    alert("Bàn này đã chơi xong");
+    return;
+  }
+
   activeTeamId = teamId;
-
-  const teamSnap = await get(ref(db,`config/teams/${teamId}`));
-  const team = teamSnap.val();
-
-  /* lấy thời gian từ admin */
-  const settingSnap = await get(ref(db,"config/settings/timeLimitSeconds"));
-  const limitSec = settingSnap.val() || 30;
-
-  const endTime = Date.now() + limitSec*1000;
+  revealed = false;
 
   await set(ref(db,"runtime/activeTableId"), teamId);
-  await set(ref(db,`teams/${teamId}`),{
-    state:"enabled",
-    total:team.defaultSize
-  });
-  await set(ref(db,"runtime/countdownEnd"), endTime);
+  await set(ref(db,`teams/${teamId}/state`),"enabled");
 
-  teamTitle.innerText = `Đang mở: ${team.name}`;
-  revealed = false;
+  teamTitle.innerText = "Đang mở: "+teamSnap.val().name;
   popup.classList.add("show");
+  startCountdown();
 };
 
-/* ===== WATCH RUNTIME ===== */
-onValue(ref(db,"runtime/countdownEnd"), snap=>{
-  if(!snap.val()) return;
-  startCountdown(snap.val());
-});
-
-/* ===== WATCH MEMBERS ===== */
+/* WATCH MEMBERS */
 onValue(ref(db,"teams"), snap=>{
   if(!activeTeamId) return;
   const team = snap.val()?.[activeTeamId];
   if(!team) return;
 
   const members = team.members ? Object.values(team.members) : [];
-  const total = team.total || 0;
+  renderMembers(members);
 
-  /* render list */
-  memberList.innerHTML="";
-  members.forEach((m,i)=>{
-    memberList.innerHTML+=`<li>${i+1}. ${m}</li>`;
-  });
-
-  if(members.length >= total && !revealed){
-    revealResult();
+  if(members.length >= team.total && !revealed){
+    revealResult(team);
   }
 });
 
-/* ===== COUNTDOWN ===== */
-function startCountdown(endTime){
+/* COUNTDOWN */
+function startCountdown(){
+  let remain = TIME_LIMIT;
+  countdownEl.innerText = remain;
   clearInterval(timer);
   timer = setInterval(()=>{
-    const remain = Math.max(0, Math.ceil((endTime-Date.now())/1000));
+    remain--;
     countdownEl.innerText = remain;
-
     if(remain<=0 && !revealed){
       revealResult();
     }
   },1000);
 }
 
-/* ===== REVEAL ===== */
+/* REVEAL */
 async function revealResult(){
   revealed = true;
   clearInterval(timer);
@@ -216,10 +267,41 @@ async function revealResult(){
   const rewards = Object.values(rewardSnap.val()||{});
   const reward = rewards[Math.floor(Math.random()*rewards.length)];
 
-  resultEl.innerText = reward.title + " – " + reward.content;
+  resultText.innerText = reward.title+" – "+reward.content;
+  fireSound.play();
+  launchFirework();
 
   await set(ref(db,`teams/${activeTeamId}/state`),"revealed");
+  await set(ref(db,`teams/${activeTeamId}/result`),reward);
+  await set(ref(db,"runtime/activeTableId"),null);
 }
+
+/* UI */
+function renderMembers(list){
+  memberGrid.innerHTML="";
+  memberGrid.className="member-grid "+(list.length<=5?"single":"");
+  list.forEach((m,i)=>{
+    memberGrid.innerHTML+=`<div class="member">${i+1}. ${m}</div>`;
+  });
+}
+
+function launchFirework(){
+  for(let i=0;i<20;i++){
+    const f = document.createElement("div");
+    f.className="firework";
+    f.style.background="hsl("+Math.random()*360+",100%,60%)";
+    f.style.left="50%";
+    f.style.top="50%";
+    f.style.setProperty("--x",(Math.random()*400-200)+"px");
+    f.style.setProperty("--y",(Math.random()*400-200)+"px");
+    popup.querySelector(".popup-content").appendChild(f);
+    setTimeout(()=>f.remove(),1000);
+  }
+}
+
+closePopup.onclick=()=>{
+  popup.classList.remove("show");
+};
 </script>
 
 </body>
