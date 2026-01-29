@@ -16,7 +16,6 @@ body{
   justify-content:center;
   color:#FFD966;
 }
-
 .card{
   width:90%;
   max-width:420px;
@@ -26,61 +25,56 @@ body{
   text-align:center;
   box-shadow:0 20px 40px rgba(0,0,0,0.5);
 }
-
-h1{
-  margin:0 0 18px;
-  font-size:30px;
-  letter-spacing:1px;
-}
-
+h1{margin:0 0 18px;font-size:30px}
 .info-box{
   background:rgba(255,255,255,0.08);
   border-radius:16px;
   padding:16px;
   margin-bottom:14px;
   font-size:18px;
-  line-height:1.6;
 }
-
-.control{
-  width:100%;
-  margin-top:12px;
-}
-
-.control input{
+.control input, .control button{
   width:100%;
   height:52px;
   border-radius:16px;
   border:none;
   font-size:18px;
-  padding:0 16px;
-  box-sizing:border-box;
 }
-
 .control button{
-  width:100%;
-  height:52px;
   margin-top:12px;
-  border-radius:16px;
-  border:none;
-  font-size:20px;
-  font-weight:bold;
   background:#FFD966;
   color:#7a0c0c;
-  cursor:pointer;
+  font-weight:bold;
 }
-
-.control button:disabled{
-  opacity:0.5;
-  cursor:not-allowed;
-}
-
-.status{
-  margin-top:12px;
-  font-size:16px;
-}
+.status{margin-top:12px;font-size:16px}
 .error{color:#ffb4b4}
 .success{color:#b6ffcc}
+
+/* POPUP RESULT */
+.popup{
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.75);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:10;
+}
+.popup.show{display:flex}
+.popup-content{
+  background:#5c0a0a;
+  padding:32px;
+  border-radius:24px;
+  text-align:center;
+}
+.popup-content h2{
+  font-size:32px;
+  margin-bottom:16px;
+}
+.popup-content .reward{
+  font-size:26px;
+  color:#b6ffcc;
+}
 </style>
 </head>
 
@@ -89,9 +83,7 @@ h1{
 <div class="card">
   <h1>🍀 TEAM LỘC 🍀</h1>
 
-  <div class="info-box" id="infoBox">
-    Đang tải thông tin bàn…
-  </div>
+  <div class="info-box" id="infoBox">Đang tải thông tin bàn…</div>
 
   <div class="control">
     <input id="nameInput" placeholder="Nhập tên của bạn">
@@ -101,70 +93,71 @@ h1{
   <div class="status" id="status"></div>
 </div>
 
+<!-- RESULT POPUP -->
+<div id="resultPopup" class="popup">
+  <div class="popup-content">
+    <h2>🎉 CHÚC MỪNG 🎉</h2>
+    <div class="reward" id="rewardText"></div>
+  </div>
+</div>
+
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, get, push } from
+import { ref, get, push, onValue } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-/* ===== DOM ===== */
-const infoBox   = document.getElementById("infoBox");
+const infoBox = document.getElementById("infoBox");
 const nameInput = document.getElementById("nameInput");
-const joinBtn   = document.getElementById("joinBtn");
-const statusEl  = document.getElementById("status");
+const joinBtn = document.getElementById("joinBtn");
+const statusEl = document.getElementById("status");
+
+const popup = document.getElementById("resultPopup");
+const rewardText = document.getElementById("rewardText");
 
 /* ===== TOKEN ===== */
 const token = location.hash.replace("#k=","");
-if(!token){
-  block("❌ QR không hợp lệ");
-}
+if(!token) block("❌ QR không hợp lệ");
 
-/* ===== STATE ===== */
-let tableId   = "";
-let tableName = "";
+let tableId = "";
+let joined = false;
 
 /* ===== INIT ===== */
 (async()=>{
   try{
-    /* 1️⃣ Decode QR */
     const decoded = atob(token);
     const [prefix,id] = decoded.split("|");
-    if(prefix !== "TEAMLOC") throw "";
+    if(prefix!=="TEAMLOC") throw "";
 
     tableId = String(id);
 
-    /* 2️⃣ Lấy bàn đang mở */
+    /* check active */
     const activeSnap = await get(ref(db,"runtime/activeTableId"));
-    const activeId   = activeSnap.val();
-    const activeIdStr = activeId !== null ? String(activeId) : "";
-
-    if(!activeIdStr){
+    const activeId = activeSnap.val();
+    if(String(activeId)!==tableId){
       block("⏳ Chưa đến lượt bàn của bạn");
       return;
     }
 
-    /* 3️⃣ So sánh ÉP KIỂU (FIX LỖI CHÍNH) */
-    if(activeIdStr !== tableId){
-      block("⏳ Chưa đến lượt bàn của bạn");
-      return;
-    }
-
-    /* 4️⃣ Lấy thông tin bàn */
+    /* info */
     const teamSnap = await get(ref(db,`config/teams/${tableId}`));
     const team = teamSnap.val();
-    if(!team) throw "";
-
-    tableName = team.name;
-
-    /* 5️⃣ Runtime bàn */
     const rtSnap = await get(ref(db,`teams/${tableId}`));
-    const rt = rtSnap.val() || {};
-    const joined = rt.members ? Object.keys(rt.members).length : 0;
-    const total  = rt.total || team.defaultSize;
-
+    const rt = rtSnap.val()||{};
+    const count = rt.members?Object.keys(rt.members).length:0;
     infoBox.innerHTML = `
-      <div><strong>Bàn số:</strong> ${tableName}</div>
-      <div><strong>Tham gia:</strong> ${joined}/${total}</div>
+      <div><strong>Bàn:</strong> ${team.name}</div>
+      <div><strong>Tham gia:</strong> ${count}/${team.defaultSize}</div>
     `;
+
+    /* LISTEN RESULT */
+    onValue(ref(db,`teams/${tableId}`), snap=>{
+      const data = snap.val();
+      if(data?.state==="revealed" && data?.result){
+        rewardText.innerText = `${data.result.title} – ${data.result.content}`;
+        popup.classList.add("show");
+      }
+    });
+
   }catch{
     block("❌ QR không hợp lệ");
   }
@@ -172,23 +165,20 @@ let tableName = "";
 
 /* ===== JOIN ===== */
 joinBtn.onclick = async ()=>{
+  if(joined) return;
   const name = nameInput.value.trim();
-  if(!name){
-    showError("Vui lòng nhập tên");
-    return;
-  }
-
+  if(!name){showError("Vui lòng nhập tên");return;}
   await push(ref(db,`teams/${tableId}/members`), name);
-
+  joined = true;
   showSuccess("🎉 Đã tham gia Team Lộc");
-  nameInput.disabled = true;
-  joinBtn.disabled   = true;
+  nameInput.disabled=true;
+  joinBtn.disabled=true;
 };
 
 /* ===== UTIL ===== */
 function block(msg){
   showError(msg);
-  joinBtn.disabled = true;
+  joinBtn.disabled=true;
 }
 function showError(msg){
   statusEl.className="status error";
