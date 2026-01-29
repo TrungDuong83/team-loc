@@ -26,16 +26,25 @@ body{
   box-shadow:0 20px 40px rgba(0,0,0,0.5);
 }
 h1{margin:0 0 18px;font-size:30px}
+
+/* INFO BOX – RÕ RÀNG */
 .info-box{
-  background:rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.1);
   border-radius:16px;
-  padding:16px;
-  margin-bottom:14px;
-  font-size:18px;
+  padding:18px;
+  margin-bottom:16px;
+  font-size:20px;
+  line-height:1.6;
 }
+.info-box .label{
+  font-weight:bold;
+  color:#FFE699;
+}
+
+/* CONTROL */
 .control input, .control button{
   width:100%;
-  height:52px;
+  height:54px;
   border-radius:16px;
   border:none;
   font-size:18px;
@@ -46,14 +55,18 @@ h1{margin:0 0 18px;font-size:30px}
   color:#7a0c0c;
   font-weight:bold;
 }
+.control button:disabled{
+  opacity:0.5;
+}
+
 .status{margin-top:12px;font-size:16px}
 .error{color:#ffb4b4}
 .success{color:#b6ffcc}
 
-/* POPUP RESULT */
+/* RESULT POPUP */
 .popup{
   position:fixed;
-  top:0;left:0;right:0;bottom:0;
+  inset:0;
   background:rgba(0,0,0,0.75);
   display:none;
   align-items:center;
@@ -68,8 +81,8 @@ h1{margin:0 0 18px;font-size:30px}
   text-align:center;
 }
 .popup-content h2{
-  font-size:32px;
-  margin-bottom:16px;
+  font-size:30px;
+  margin-bottom:14px;
 }
 .popup-content .reward{
   font-size:26px;
@@ -83,7 +96,10 @@ h1{margin:0 0 18px;font-size:30px}
 <div class="card">
   <h1>🍀 TEAM LỘC 🍀</h1>
 
-  <div class="info-box" id="infoBox">Đang tải thông tin bàn…</div>
+  <div class="info-box" id="infoBox">
+    <div><span class="label">Bàn:</span> —</div>
+    <div><span class="label">Tham gia:</span> —</div>
+  </div>
 
   <div class="control">
     <input id="nameInput" placeholder="Nhập tên của bạn">
@@ -93,7 +109,7 @@ h1{margin:0 0 18px;font-size:30px}
   <div class="status" id="status"></div>
 </div>
 
-<!-- RESULT POPUP -->
+<!-- RESULT -->
 <div id="resultPopup" class="popup">
   <div class="popup-content">
     <h2>🎉 CHÚC MỪNG 🎉</h2>
@@ -110,11 +126,9 @@ const infoBox = document.getElementById("infoBox");
 const nameInput = document.getElementById("nameInput");
 const joinBtn = document.getElementById("joinBtn");
 const statusEl = document.getElementById("status");
-
 const popup = document.getElementById("resultPopup");
 const rewardText = document.getElementById("rewardText");
 
-/* ===== TOKEN ===== */
 const token = location.hash.replace("#k=","");
 if(!token) block("❌ QR không hợp lệ");
 
@@ -124,37 +138,43 @@ let joined = false;
 /* ===== INIT ===== */
 (async()=>{
   try{
-    const decoded = atob(token);
-    const [prefix,id] = decoded.split("|");
+    const [prefix,id] = atob(token).split("|");
     if(prefix!=="TEAMLOC") throw "";
-
     tableId = String(id);
 
-    /* check active */
-    const activeSnap = await get(ref(db,"runtime/activeTableId"));
-    const activeId = activeSnap.val();
-    if(String(activeId)!==tableId){
+    /* CHECK ACTIVE */
+    const activeId = String((await get(ref(db,"runtime/activeTableId"))).val()||"");
+    if(activeId !== tableId){
       block("⏳ Chưa đến lượt bàn của bạn");
       return;
     }
 
-    /* info */
+    /* LOAD TEAM */
     const teamSnap = await get(ref(db,`config/teams/${tableId}`));
-    const team = teamSnap.val();
-    const rtSnap = await get(ref(db,`teams/${tableId}`));
-    const rt = rtSnap.val()||{};
-    const count = rt.members?Object.keys(rt.members).length:0;
-    infoBox.innerHTML = `
-      <div><strong>Bàn:</strong> ${team.name}</div>
-      <div><strong>Tham gia:</strong> ${count}/${team.defaultSize}</div>
-    `;
+    const teamCfg = teamSnap.val();
 
-    /* LISTEN RESULT */
+    const teamRtSnap = await get(ref(db,`teams/${tableId}`));
+    const team = teamRtSnap.val() || {};
+
+    renderInfo(teamCfg.name, team);
+
+    /* BLOCK IF REVEALED */
+    if(team.state === "revealed"){
+      block("🎉 Lượt chơi đã kết thúc");
+      if(team.result) showResult(team.result);
+      return;
+    }
+
+    /* LISTEN REALTIME */
     onValue(ref(db,`teams/${tableId}`), snap=>{
       const data = snap.val();
-      if(data?.state==="revealed" && data?.result){
-        rewardText.innerText = `${data.result.title} – ${data.result.content}`;
-        popup.classList.add("show");
+      if(!data) return;
+
+      renderInfo(teamCfg.name, data);
+
+      if(data.state === "revealed"){
+        block("🎉 Lượt chơi đã kết thúc");
+        if(data.result) showResult(data.result);
       }
     });
 
@@ -175,10 +195,23 @@ joinBtn.onclick = async ()=>{
   joinBtn.disabled=true;
 };
 
-/* ===== UTIL ===== */
+/* ===== UI ===== */
+function renderInfo(name, team){
+  const count = team.members ? Object.keys(team.members).length : 0;
+  const total = team.total || teamCfg?.defaultSize || 0;
+  infoBox.innerHTML = `
+    <div><span class="label">Bàn:</span> ${name}</div>
+    <div><span class="label">Tham gia:</span> ${count}/${total}</div>
+  `;
+}
+function showResult(r){
+  rewardText.innerText = `${r.title} – ${r.content}`;
+  popup.classList.add("show");
+}
 function block(msg){
   showError(msg);
   joinBtn.disabled=true;
+  nameInput.disabled=true;
 }
 function showError(msg){
   statusEl.className="status error";
