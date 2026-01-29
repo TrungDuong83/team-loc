@@ -153,6 +153,11 @@ teamSelect.onchange = async () => {
   teamTitle.innerText = `TEAM LỘC – ${cfg.name}`;
   teamInfo.innerText  = `Số người mặc định: ${defaultSize}`;
 
+  /* CHƯA CÓ DATA → COI NHƯ WAITING */
+  currentState = "waiting";
+  updateStateUI("waiting");
+  openBtn.disabled = false;
+
   await set(ref(db,"runtime/activeTeam"), teamId);
 };
 
@@ -175,7 +180,14 @@ onValue(ref(db,"runtime/activeTeam"), snap=>{
 
   onValue(ref(db,`teams/${teamId}`), async s=>{
     const d = s.val();
-    if(!d) return;
+
+    /* CHƯA TỒN TẠI DATA → WAITING */
+    if(!d){
+      currentState = "waiting";
+      updateStateUI("waiting");
+      openBtn.disabled = false;
+      return;
+    }
 
     currentState = d.state || "waiting";
     updateStateUI(currentState);
@@ -233,6 +245,7 @@ function startCountdown(teamId){
 /* UI STATE */
 function updateStateUI(state){
   stateLabel.className = "state " + state;
+
   const map = {
     waiting  : "Trạng thái: Chờ mở",
     enabled  : "Trạng thái: Đang nhận thành viên",
@@ -240,20 +253,18 @@ function updateStateUI(state){
     revealed : "Trạng thái: Đã mở lộc",
     locked   : "Trạng thái: Đã kết thúc"
   };
-  stateLabel.innerText = map[state] || "";
 
-  /* KHÓA / MỞ NÚT */
+  stateLabel.innerText = map[state] || "";
   openBtn.disabled = (state !== "waiting");
 }
 
-/* RESET UI KHI ĐỔI BÀN */
+/* RESET UI */
 function resetUI(){
   countEl.innerText = "";
   listEl.innerHTML = "";
   countdown.innerText = "";
   resultEl.innerText = "";
-  stateLabel.innerText = "";
-  openBtn.disabled = true;
+  stateLabel.innerText = "Trạng thái: Chờ mở";
 }
 </script>
 </body>
