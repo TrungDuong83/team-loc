@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>TEAM LỘC</title>
+<title>CHUNG TAY HÁI LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -94,7 +94,7 @@ h1{margin:0 0 18px;font-size:30px}
 <body>
 
 <div class="card">
-  <h1>🍀 TEAM LỘC 🍀</h1>
+  <h1>🍀 CHUNG TAY HÁI LỘC 🍀</h1>
 
   <div class="info-box" id="infoBox">
     <div><span class="label">Bàn:</span> —</div>
@@ -196,7 +196,7 @@ joinBtn.onclick = async ()=>{
   if(!name){showError("Vui lòng nhập tên");return;}
   await push(ref(db,`teams/${tableId}/members`), name);
   joined = true;
-  showSuccess("🎉 Đã tham gia Team Lộc");
+  showSuccess("🎉 Đã tham gia Chung Tay Hái Lộc");
   nameInput.disabled=true;
   joinBtn.disabled=true;
 };
@@ -241,3 +241,4 @@ function showSuccess(msg){
 
 </body>
 </html>
+
