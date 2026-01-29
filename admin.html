@@ -25,10 +25,17 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff;text-align:center}
 
 /* Modal */
 .modal{
-  position:fixed;top:0;left:0;right:0;bottom:0;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
   background:rgba(0,0,0,0.6);
-  display:flex;align-items:center;justify-content:center;
+  align-items:center;
+  justify-content:center;
+  display:none;
 }
+.modal.show{
+  display:flex;
+}
+
 .modal-content{
   background:#5C0A0A;
   padding:20px;
@@ -96,7 +103,7 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff;text-align:center}
 </div>
 
 <!-- MODAL MEMBER -->
-<div id="memberModal" class="modal hidden">
+<div id="memberModal" class="modal">
   <div class="modal-content">
     <h3>👥 Danh sách thành viên</h3>
     <ul id="memberList"></ul>
@@ -193,9 +200,11 @@ window.viewMembers=async(id)=>{
   Object.values(list).forEach(n=>{
     memberList.innerHTML+=`<li>${n}</li>`;
   });
-  memberModal.classList.remove("hidden");
+  memberModal.classList.add("show");
 };
-window.closeModal=()=>memberModal.classList.add("hidden");
+window.closeModal = ()=>{
+  memberModal.classList.remove("show");
+};
 
 /* EDIT / DELETE TEAM */
 window.editTeam=id=>{
