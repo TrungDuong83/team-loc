@@ -11,110 +11,249 @@ body{
   color:#FFD966;
   font-family:"Segoe UI",Arial;
 }
-.center{max-width:1200px;margin:auto;padding:40px;text-align:center}
-h1{font-size:64px;margin:10px}
-h2{font-size:36px}
-.count{font-size:28px;color:#fff}
-ul{list-style:none;padding:0}
-li{font-size:26px;color:#fff}
-button,select{
-  padding:12px 20px;
-  font-size:20px;
-  background:#FFD966;border:none;font-weight:bold
+.center{
+  max-width:1280px;
+  margin:auto;
+  padding:40px;
+  text-align:center;
 }
-.countdown{font-size:140px;color:#00E676}
-.result{font-size:42px;margin-top:20px;color:#00E676}
+h1{
+  font-size:72px;
+  margin:10px 0;
+}
+h2{
+  font-size:40px;
+  margin:10px 0;
+}
+.info{
+  font-size:30px;
+  color:#fff;
+  margin:12px 0;
+}
+.state{
+  font-size:26px;
+  margin:10px 0;
+}
+.state.waiting{color:#FFD966}
+.state.enabled{color:#00E676}
+.state.counting{color:#29B6F6}
+.state.revealed{color:#FFEE58}
+.state.locked{color:#EF5350}
+
+ul{
+  list-style:none;
+  padding:0;
+  margin:20px 0;
+}
+li{
+  font-size:28px;
+  color:#fff;
+}
+
+select, button{
+  padding:14px 28px;
+  font-size:22px;
+  background:#FFD966;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+  margin:8px;
+}
+button:disabled{
+  background:#999;
+  cursor:not-allowed;
+}
+
+.countdown{
+  font-size:160px;
+  color:#00E676;
+  margin-top:20px;
+}
+.result{
+  font-size:48px;
+  margin-top:20px;
+  color:#00E676;
+}
 </style>
 </head>
+
 <body>
 <div class="center">
+
   <h1>🍀 TEAM LỘC 🍀</h1>
-  <h2 id="teamTitle">Chưa chọn bàn</h2>
 
+  <!-- CHỌN BÀN -->
   <select id="teamSelect"></select>
-  <select id="expected"></select>
-  <button id="open">MỞ BÀN</button>
 
-  <div class="count" id="count"></div>
+  <h2 id="teamTitle">Chưa chọn bàn</h2>
+  <div class="info" id="teamInfo">—</div>
+
+  <!-- TRẠNG THÁI -->
+  <div class="state waiting" id="stateLabel">Trạng thái: Chờ mở</div>
+
+  <!-- NÚT MỞ BÀN -->
+  <button id="openBtn" disabled>MỞ BÀN</button>
+
+  <!-- DANH SÁCH -->
+  <div class="info" id="count"></div>
   <ul id="list"></ul>
 
+  <!-- COUNTDOWN & RESULT -->
   <div class="countdown" id="countdown"></div>
   <div class="result" id="result"></div>
+
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref,onValue,update,set,get } from
+import { ref, onValue, update, set, get } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const teamSelect=document.getElementById("teamSelect");
-const expected=document.getElementById("expected");
-const teamTitle=document.getElementById("teamTitle");
+/* ELEMENTS */
+const teamSelect = document.getElementById("teamSelect");
+const teamTitle  = document.getElementById("teamTitle");
+const teamInfo   = document.getElementById("teamInfo");
+const openBtn    = document.getElementById("openBtn");
+const stateLabel = document.getElementById("stateLabel");
+const countEl    = document.getElementById("count");
+const listEl     = document.getElementById("list");
+const countdown  = document.getElementById("countdown");
+const resultEl   = document.getElementById("result");
 
-onValue(ref(db,"config/teams"),snap=>{
-  teamSelect.innerHTML="<option value=''>--Chọn bàn--</option>";
+/* STATE */
+let activeTeam   = null;
+let defaultSize  = null;
+let currentState = "waiting";
+
+/* LOAD DANH SÁCH BÀN */
+onValue(ref(db,"config/teams"), snap=>{
+  teamSelect.innerHTML = "<option value=''>-- Chọn bàn --</option>";
   Object.entries(snap.val()||{}).forEach(([id,t])=>{
-    teamSelect.innerHTML+=`<option value="${id}">${t.name}</option>`;
+    teamSelect.innerHTML += `<option value="${id}">${t.name}</option>`;
   });
 });
 
-teamSelect.onchange=async()=>{
-  const id=teamSelect.value;
-  if(!id)return;
-  await set(ref(db,"runtime/activeTeam"),id);
-  const cfg=await get(ref(db,`config/teams/${id}`));
-  expected.innerHTML="";
-  for(let i=1;i<=cfg.val().defaultSize;i++)
-    expected.innerHTML+=`<option>${i}</option>`;
-  teamTitle.innerText=`TEAM LỘC – ${cfg.val().name}`;
+/* MC CHỌN BÀN */
+teamSelect.onchange = async () => {
+  const teamId = teamSelect.value;
+  resetUI();
+
+  if(!teamId){
+    openBtn.disabled = true;
+    teamTitle.innerText = "Chưa chọn bàn";
+    return;
+  }
+
+  const cfgSnap = await get(ref(db,`config/teams/${teamId}`));
+  const cfg = cfgSnap.val();
+
+  activeTeam  = teamId;
+  defaultSize = cfg.defaultSize;
+
+  teamTitle.innerText = `TEAM LỘC – ${cfg.name}`;
+  teamInfo.innerText  = `Số người mặc định: ${defaultSize}`;
+
+  await set(ref(db,"runtime/activeTeam"), teamId);
 };
 
-open.onclick=async()=>{
-  const team=(await get(ref(db,"runtime/activeTeam"))).val();
-  await update(ref(db,`teams/${team}`),{
-    state:"enabled",
-    expected:Number(expected.value),
-    members:{}
+/* MỞ BÀN */
+openBtn.onclick = async () => {
+  if(currentState !== "waiting") return;
+  if(!activeTeam || !defaultSize) return;
+
+  await update(ref(db,`teams/${activeTeam}`),{
+    state: "enabled",
+    expected: defaultSize,
+    members: {}
   });
 };
 
-onValue(ref(db,"runtime/activeTeam"),snap=>{
-  if(!snap.val())return;
-  const team=snap.val();
-  onValue(ref(db,`teams/${team}`),async s=>{
-    const d=s.val(); if(!d)return;
-    const m=Object.values(d.members||{});
-    count.innerText=`Đã tham gia: ${m.length}/${d.expected||"?"}`;
-    list.innerHTML=m.map(x=>`<li>${x}</li>`).join("");
+/* THEO DÕI BÀN ĐANG ACTIVE */
+onValue(ref(db,"runtime/activeTeam"), snap=>{
+  const teamId = snap.val();
+  if(!teamId) return;
 
-    if(d.state==="enabled" && m.length===d.expected){
-      await update(ref(db,`teams/${team}`),{state:"counting"});
-      startCountdown(team);
+  onValue(ref(db,`teams/${teamId}`), async s=>{
+    const d = s.val();
+    if(!d) return;
+
+    currentState = d.state || "waiting";
+    updateStateUI(currentState);
+
+    const members = Object.values(d.members||{});
+    countEl.innerText = `Đã tham gia: ${members.length}/${d.expected}`;
+    listEl.innerHTML = members.map(m=>`<li>${m}</li>`).join("");
+
+    /* ĐỦ NGƯỜI → COUNTDOWN */
+    if(currentState==="enabled" && members.length===d.expected){
+      await update(ref(db,`teams/${teamId}`),{state:"counting"});
+      startCountdown(teamId);
     }
-    if(d.state==="revealed"){
-      result.innerHTML=`🎉 ${d.result.title} – ${d.result.content}`;
+
+    /* HIỂN THỊ KẾT QUẢ */
+    if(currentState==="revealed"){
+      resultEl.innerHTML = `🎉 ${d.result.title} – ${d.result.content}`;
     }
   });
 });
 
-function startCountdown(team){
-  let i=3; countdown.innerText=i;
-  const t=setInterval(async()=>{
-    i--; countdown.innerText=i||"🍀";
+/* COUNTDOWN + RÚT LỘC */
+function startCountdown(teamId){
+  let i = 3;
+  countdown.innerText = i;
+
+  const t = setInterval(async ()=>{
+    i--;
+    countdown.innerText = i>0 ? i : "🍀";
+
     if(i<=0){
       clearInterval(t);
-      const rs=await get(ref(db,"config/rewards"));
+
+      const rs = await get(ref(db,"config/rewards"));
       const pool=[];
       Object.values(rs.val()||{}).forEach(r=>{
         for(let j=0;j<r.weight;j++) pool.push(r);
       });
-      const pick=pool[Math.floor(Math.random()*pool.length)];
-      await update(ref(db,`teams/${team}`),{
+
+      const pick = pool[Math.floor(Math.random()*pool.length)];
+
+      await update(ref(db,`teams/${teamId}`),{
         state:"revealed",
         result:pick
       });
+
+      /* TỰ ĐỘNG KHÓA BÀN SAU 5 GIÂY */
+      setTimeout(async ()=>{
+        await update(ref(db,`teams/${teamId}`),{state:"locked"});
+      },5000);
     }
   },1000);
+}
+
+/* UI STATE */
+function updateStateUI(state){
+  stateLabel.className = "state " + state;
+  const map = {
+    waiting  : "Trạng thái: Chờ mở",
+    enabled  : "Trạng thái: Đang nhận thành viên",
+    counting : "Trạng thái: Đếm ngược",
+    revealed : "Trạng thái: Đã mở lộc",
+    locked   : "Trạng thái: Đã kết thúc"
+  };
+  stateLabel.innerText = map[state] || "";
+
+  /* KHÓA / MỞ NÚT */
+  openBtn.disabled = (state !== "waiting");
+}
+
+/* RESET UI KHI ĐỔI BÀN */
+function resetUI(){
+  countEl.innerText = "";
+  listEl.innerHTML = "";
+  countdown.innerText = "";
+  resultEl.innerText = "";
+  stateLabel.innerText = "";
+  openBtn.disabled = true;
 }
 </script>
 </body>
