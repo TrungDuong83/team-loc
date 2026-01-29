@@ -4,20 +4,42 @@
 <meta charset="UTF-8">
 <title>ADMIN – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body{font-family:Arial;background:#7A0C0C;color:#FFD966}
-.box{max-width:1100px;margin:auto;padding:24px}
+.box{max-width:1300px;margin:auto;padding:24px}
 h1,h2{color:#FFD966}
-input,button,select{padding:8px;margin:4px}
+input,button{padding:8px;margin:4px}
 button{background:#FFD966;border:none;font-weight:bold;cursor:pointer}
+button.danger{background:#C62828;color:#fff}
 table{width:100%;border-collapse:collapse;margin-top:10px}
-td,th{border:1px solid #FFD966;padding:6px;color:#fff}
-.icon{cursor:pointer;margin:0 6px}
+td,th{border:1px solid #FFD966;padding:6px;color:#fff;text-align:center}
+.icon{cursor:pointer;margin:0 6px;font-size:18px}
 .hidden{display:none}
+.qr-cell{width:90px}
+.state.waiting{color:#FFD966}
+.state.enabled{color:#00E676}
+.state.counting{color:#29B6F6}
+.state.revealed{color:#FFEE58}
+.state.locked{color:#EF5350}
+
+/* Modal */
+.modal{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+}
+.modal-content{
+  background:#5C0A0A;
+  padding:20px;
+  border-radius:12px;
+  min-width:300px;
+}
 </style>
 </head>
 
 <body>
+
 <div class="box" id="loginBox">
   <h1>🔐 ADMIN LOGIN</h1>
   <input id="pass" type="password" placeholder="Mật khẩu">
@@ -27,19 +49,27 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
 <div class="box hidden" id="adminBox">
 
 <h2>🧹 RESET LƯỢT CHƠI</h2>
-<button onclick="resetAll()">RESET</button>
+<button class="danger" onclick="resetAll()">RESET LƯỢT CHƠI</button>
 
 <hr>
 
-<h2>🪑 CẤU HÌNH BÀN</h2>
-<input id="teamId" placeholder="Mã bàn" disabled>
+<h2>🪑 QUẢN LÝ BÀN</h2>
+
+<input id="teamId" disabled placeholder="ID">
 <input id="teamName" placeholder="Tên bàn">
 <input id="teamSize" type="number" placeholder="Số người">
 <button onclick="saveTeam()">Lưu</button>
 
 <table>
 <thead>
-<tr><th>Tên bàn</th><th>QR Link</th><th>QR</th><th>Thao tác</th></tr>
+<tr>
+  <th>Tên bàn</th>
+  <th>Trạng thái</th>
+  <th>Link QR</th>
+  <th>QR</th>
+  <th>Thành viên</th>
+  <th>Thao tác</th>
+</tr>
 </thead>
 <tbody id="teamTable"></tbody>
 </table>
@@ -47,7 +77,8 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
 <hr>
 
 <h2>🎁 GIẢI THƯỞNG</h2>
-<input id="rewardKey" disabled>
+
+<input id="rewardKey" disabled placeholder="Key">
 <input id="rTitle" placeholder="Tên giải">
 <input id="rContent" placeholder="Nội dung">
 <input id="rWeight" type="number" placeholder="Weight">
@@ -55,18 +86,29 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
 
 <table>
 <thead>
-<tr><th>Tên</th><th>Nội dung</th><th>Weight</th><th>Thao tác</th></tr>
+<tr>
+  <th>Tên</th><th>Nội dung</th><th>Weight</th><th>Thao tác</th>
+</tr>
 </thead>
 <tbody id="rewardTable"></tbody>
 </table>
 
 </div>
 
+<!-- MODAL MEMBER -->
+<div id="memberModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>👥 Danh sách thành viên</h3>
+    <ul id="memberList"></ul>
+    <button onclick="closeModal()">Đóng</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, set, onValue, remove } from
+import { ref, set, onValue, remove, get } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const ADMIN_PASS="YEP2026";
@@ -77,96 +119,118 @@ window.login=()=>{
   if(pass.value===ADMIN_PASS){
     loginBox.classList.add("hidden");
     adminBox.classList.remove("hidden");
-  } else alert("Sai mật khẩu");
+  }else alert("Sai mật khẩu");
 };
 
 /* RESET */
 window.resetAll=async()=>{
+  if(!confirm("Reset lượt chơi hiện tại?")) return;
   await remove(ref(db,"teams"));
   await remove(ref(db,"runtime"));
-  alert("Đã reset lượt chơi");
+  alert("Đã reset");
 };
 
-/* TEAMS */
+/* SAVE TEAM */
 window.saveTeam=async()=>{
-  const id = teamId.value || Date.now();
-  const raw = `${PREFIX}|${id}|${SALT}`;
-  const token = btoa(raw);
-  const link = `${location.origin}/join.html#k=${token}`;
+  const id = teamId.value || Date.now().toString();
+  const raw=`${PREFIX}|${id}|${SALT}`;
+  const token=btoa(raw);
+  const link=`${location.origin}/join.html#k=${token}`;
 
   await set(ref(db,`config/teams/${id}`),{
-    name: teamName.value,
-    defaultSize: Number(teamSize.value),
-    qrToken: token,
-    qrLink: link
+    name:teamName.value,
+    defaultSize:Number(teamSize.value),
+    qrToken:token,
+    qrLink:link
   });
 
-  teamId.value=""; teamName.value=""; teamSize.value="";
+  teamId.value="";teamName.value="";teamSize.value="";
 };
 
-onValue(ref(db,"config/teams"),snap=>{
+/* LOAD TEAMS + STATUS + QR */
+onValue(ref(db,"config/teams"), async snap=>{
   teamTable.innerHTML="";
+  const runtimeSnap = await get(ref(db,"teams"));
+  const runtimeData = runtimeSnap.val() || {};
+
+  const qrQueue=[];
+
   Object.entries(snap.val()||{}).forEach(([id,t])=>{
+    const rt = runtimeData[id] || {};
+    const state = rt.state || "waiting";
+    const members = rt.members ? Object.values(rt.members) : [];
+
     teamTable.innerHTML+=`
-    <tr>
-      <td>${t.name}</td>
-      <td><input value="${t.qrLink||''}" readonly></td>
-      <td><div id="qr_${id}"></div></td>
-      <td>
-        <span class="icon" onclick="editTeam('${id}')">✏️</span>
-        <span class="icon" onclick="delTeam('${id}')">🗑</span>
-      </td>
-    </tr>`;
-    if(t.qrLink){
-      new QRCode(document.getElementById(`qr_${id}`),{text:t.qrLink,width:80,height:80});
-    }
+      <tr>
+        <td>${t.name}</td>
+        <td class="state ${state}">${state}</td>
+        <td><input value="${t.qrLink||''}" readonly style="width:100%"></td>
+        <td class="qr-cell"><div id="qr_${id}"></div></td>
+        <td>
+          ${members.length>0 ? `<span class="icon" onclick="viewMembers('${id}')">👥 (${members.length})</span>` : "-"}
+        </td>
+        <td>
+          <span class="icon" onclick="editTeam('${id}')">✏️</span>
+          <span class="icon" onclick="delTeam('${id}')">🗑</span>
+        </td>
+      </tr>`;
+    if(t.qrLink) qrQueue.push({id,link:t.qrLink});
   });
+
+  setTimeout(()=>{
+    qrQueue.forEach(q=>{
+      const el=document.getElementById(`qr_${q.id}`);
+      if(el){el.innerHTML="";new QRCode(el,{text:q.link,width:70,height:70});}
+    });
+  },0);
 });
 
+/* VIEW MEMBERS */
+window.viewMembers=async(id)=>{
+  const snap=await get(ref(db,`teams/${id}/members`));
+  const list=snap.val()||{};
+  memberList.innerHTML="";
+  Object.values(list).forEach(n=>{
+    memberList.innerHTML+=`<li>${n}</li>`;
+  });
+  memberModal.classList.remove("hidden");
+};
+window.closeModal=()=>memberModal.classList.add("hidden");
+
+/* EDIT / DELETE TEAM */
 window.editTeam=id=>{
   onValue(ref(db,`config/teams/${id}`),s=>{
     const t=s.val();
-    teamId.value=id;
-    teamName.value=t.name;
-    teamSize.value=t.defaultSize;
+    teamId.value=id;teamName.value=t.name;teamSize.value=t.defaultSize;
   },{onlyOnce:true});
 };
 window.delTeam=id=>remove(ref(db,`config/teams/${id}`));
 
-/* REWARDS */
+/* REWARD */
 window.saveReward=async()=>{
-  const k = rewardKey.value || Date.now();
+  const k=rewardKey.value||Date.now().toString();
   await set(ref(db,`config/rewards/${k}`),{
-    title:rTitle.value,
-    content:rContent.value,
-    weight:Number(rWeight.value)
+    title:rTitle.value,content:rContent.value,weight:Number(rWeight.value)
   });
-  rewardKey.value=""; rTitle.value=""; rContent.value=""; rWeight.value="";
+  rewardKey.value="";rTitle.value="";rContent.value="";rWeight.value="";
 };
-
 onValue(ref(db,"config/rewards"),snap=>{
   rewardTable.innerHTML="";
   Object.entries(snap.val()||{}).forEach(([k,r])=>{
     rewardTable.innerHTML+=`
-    <tr>
-      <td>${r.title}</td>
-      <td>${r.content}</td>
-      <td>${r.weight}</td>
-      <td>
-        <span class="icon" onclick="editReward('${k}')">✏️</span>
-        <span class="icon" onclick="delReward('${k}')">🗑</span>
-      </td>
-    </tr>`;
+      <tr>
+        <td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td>
+        <td>
+          <span class="icon" onclick="editReward('${k}')">✏️</span>
+          <span class="icon" onclick="delReward('${k}')">🗑</span>
+        </td>
+      </tr>`;
   });
 });
-
 window.editReward=k=>{
   onValue(ref(db,`config/rewards/${k}`),s=>{
     const r=s.val();
-    rewardKey.value=k;
-    rTitle.value=r.title;
-    rContent.value=r.content;
-    rWeight.value=r.weight;
+    rewardKey.value=k;rTitle.value=r.title;rContent.value=r.content;rWeight.value=r.weight;
   },{onlyOnce:true});
 };
 window.delReward=k=>remove(ref(db,`config/rewards/${k}`));
