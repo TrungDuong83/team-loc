@@ -79,12 +79,8 @@ h1{
   margin-top:12px;
   font-size:16px;
 }
-.error{
-  color:#ffb4b4;
-}
-.success{
-  color:#b6ffcc;
-}
+.error{color:#ffb4b4}
+.success{color:#b6ffcc}
 </style>
 </head>
 
@@ -107,59 +103,59 @@ h1{
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, get, set, push } from
+import { ref, get, push } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 /* ===== DOM ===== */
-const infoBox  = document.getElementById("infoBox");
-const nameInput= document.getElementById("nameInput");
-const joinBtn  = document.getElementById("joinBtn");
-const statusEl = document.getElementById("status");
+const infoBox   = document.getElementById("infoBox");
+const nameInput = document.getElementById("nameInput");
+const joinBtn   = document.getElementById("joinBtn");
+const statusEl  = document.getElementById("status");
 
-/* ===== GET TOKEN ===== */
+/* ===== TOKEN ===== */
 const token = location.hash.replace("#k=","");
 if(!token){
-  showError("❌ QR không hợp lệ");
-  joinBtn.disabled = true;
-  throw "";
+  block("❌ QR không hợp lệ");
 }
 
-let tableId = "";
+/* ===== STATE ===== */
+let tableId   = "";
 let tableName = "";
 
 /* ===== INIT ===== */
 (async()=>{
   try{
+    /* 1️⃣ Decode QR */
     const decoded = atob(token);
-    const [prefix,id,salt] = decoded.split("|");
-    if(prefix!=="TEAMLOC") throw "";
+    const [prefix,id] = decoded.split("|");
+    if(prefix !== "TEAMLOC") throw "";
 
-    tableId = id;
+    tableId = String(id);
 
-    /* 1️⃣ Lấy bàn đang mở */
+    /* 2️⃣ Lấy bàn đang mở */
     const activeSnap = await get(ref(db,"runtime/activeTableId"));
-    const activeId = activeSnap.val();
-    if(!activeId){
-      showError("⏳ Chưa đến lượt bàn của bạn");
-      joinBtn.disabled=true;
+    const activeId   = activeSnap.val();
+    const activeIdStr = activeId !== null ? String(activeId) : "";
+
+    if(!activeIdStr){
+      block("⏳ Chưa đến lượt bàn của bạn");
       return;
     }
 
-    /* 2️⃣ So sánh bàn */
-    if(activeId !== tableId){
-      showError("❌ Bàn của bạn chưa được mở");
-      joinBtn.disabled=true;
+    /* 3️⃣ So sánh ÉP KIỂU (FIX LỖI CHÍNH) */
+    if(activeIdStr !== tableId){
+      block("⏳ Chưa đến lượt bàn của bạn");
       return;
     }
 
-    /* 3️⃣ Lấy thông tin bàn */
+    /* 4️⃣ Lấy thông tin bàn */
     const teamSnap = await get(ref(db,`config/teams/${tableId}`));
     const team = teamSnap.val();
     if(!team) throw "";
 
     tableName = team.name;
 
-    /* 4️⃣ Lấy runtime bàn */
+    /* 5️⃣ Runtime bàn */
     const rtSnap = await get(ref(db,`teams/${tableId}`));
     const rt = rtSnap.val() || {};
     const joined = rt.members ? Object.keys(rt.members).length : 0;
@@ -170,8 +166,7 @@ let tableName = "";
       <div><strong>Tham gia:</strong> ${joined}/${total}</div>
     `;
   }catch{
-    showError("❌ QR không hợp lệ");
-    joinBtn.disabled=true;
+    block("❌ QR không hợp lệ");
   }
 })();
 
@@ -183,15 +178,18 @@ joinBtn.onclick = async ()=>{
     return;
   }
 
-  const memberRef = ref(db,`teams/${tableId}/members`);
-  await push(memberRef, name);
+  await push(ref(db,`teams/${tableId}/members`), name);
 
   showSuccess("🎉 Đã tham gia Team Lộc");
   nameInput.disabled = true;
-  joinBtn.disabled = true;
+  joinBtn.disabled   = true;
 };
 
 /* ===== UTIL ===== */
+function block(msg){
+  showError(msg);
+  joinBtn.disabled = true;
+}
 function showError(msg){
   statusEl.className="status error";
   statusEl.innerText=msg;

@@ -4,268 +4,223 @@
 <meta charset="UTF-8">
 <title>MC – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body{
   margin:0;
-  background:radial-gradient(circle,#9B1B1B,#5C0A0A);
+  background:#7a0c0c;
+  font-family:Arial;
   color:#FFD966;
-  font-family:"Segoe UI",Arial;
 }
-.center{
-  max-width:1280px;
+.container{
+  max-width:1400px;
   margin:auto;
-  padding:40px;
-  text-align:center;
+  padding:24px;
 }
-h1{
-  font-size:72px;
-  margin:10px 0;
-}
-h2{
-  font-size:40px;
-  margin:10px 0;
-}
-.info{
-  font-size:30px;
-  color:#fff;
-  margin:12px 0;
-}
-.state{
-  font-size:26px;
-  margin:10px 0;
-}
-.state.waiting{color:#FFD966}
-.state.enabled{color:#00E676}
-.state.counting{color:#29B6F6}
-.state.revealed{color:#FFEE58}
-.state.locked{color:#EF5350}
+h1,h2{margin:10px 0}
 
-ul{
-  list-style:none;
-  padding:0;
-  margin:20px 0;
+select,button{
+  padding:10px;
+  font-size:18px;
+  margin:6px;
 }
-li{
-  font-size:28px;
-  color:#fff;
-}
-
-select, button{
-  padding:14px 28px;
-  font-size:22px;
+button{
   background:#FFD966;
   border:none;
   font-weight:bold;
   cursor:pointer;
-  margin:8px;
 }
 button:disabled{
-  background:#999;
+  opacity:0.4;
   cursor:not-allowed;
 }
 
-.countdown{
-  font-size:160px;
-  color:#00E676;
+/* MEMBER LIST */
+.member-list{
   margin-top:20px;
+  background:rgba(255,255,255,0.08);
+  padding:20px;
+  border-radius:16px;
+}
+.member-list ul{
+  list-style:none;
+  padding-left:0;
+}
+.member-list li{
+  text-align:left;
+  font-size:20px;
+  margin:6px 0;
+}
+
+/* POPUP */
+.popup{
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:10;
+}
+.popup.show{display:flex}
+.popup-content{
+  background:#5c0a0a;
+  padding:40px;
+  border-radius:24px;
+  text-align:center;
+  min-width:420px;
+}
+.popup-content h2{
+  font-size:36px;
+}
+.countdown{
+  font-size:48px;
+  margin:20px 0;
 }
 .result{
-  font-size:48px;
+  font-size:42px;
   margin-top:20px;
-  color:#00E676;
+  color:#b6ffcc;
 }
 </style>
 </head>
 
 <body>
-<div class="center">
 
-  <h1>🍀 TEAM LỘC 🍀</h1>
+<div class="container">
 
-  <!-- CHỌN BÀN -->
+<h1>🎤 MC – TEAM LỘC</h1>
+
+<div>
   <select id="teamSelect"></select>
+  <button id="openBtn">MỞ BÀN</button>
+</div>
 
-  <h2 id="teamTitle">Chưa chọn bàn</h2>
-  <div class="info" id="teamInfo">—</div>
+<h2 id="teamTitle">Chưa mở bàn</h2>
 
-  <!-- TRẠNG THÁI -->
-  <div class="state waiting" id="stateLabel">Trạng thái: Chờ mở</div>
+<div class="member-list">
+  <h3>👥 Danh sách thành viên</h3>
+  <ul id="memberList"></ul>
+</div>
 
-  <!-- NÚT MỞ BÀN -->
-  <button id="openBtn" disabled>MỞ BÀN</button>
+</div>
 
-  <!-- DANH SÁCH -->
-  <div class="info" id="count"></div>
-  <ul id="list"></ul>
-
-  <!-- COUNTDOWN & RESULT -->
-  <div class="countdown" id="countdown"></div>
-  <div class="result" id="result"></div>
-
+<!-- POPUP -->
+<div id="popup" class="popup">
+  <div class="popup-content">
+    <h2>🍀 TEAM LỘC 🍀</h2>
+    <div class="countdown" id="countdown">--</div>
+    <div class="result" id="result"></div>
+  </div>
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, onValue, update, set, get } from
+import { ref, get, set, onValue } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-/* ELEMENTS */
+/* ===== DOM ===== */
 const teamSelect = document.getElementById("teamSelect");
-const teamTitle  = document.getElementById("teamTitle");
-const teamInfo   = document.getElementById("teamInfo");
 const openBtn    = document.getElementById("openBtn");
-const stateLabel = document.getElementById("stateLabel");
-const countEl    = document.getElementById("count");
-const listEl     = document.getElementById("list");
-const countdown  = document.getElementById("countdown");
+const teamTitle  = document.getElementById("teamTitle");
+const memberList = document.getElementById("memberList");
+
+const popup      = document.getElementById("popup");
+const countdownEl= document.getElementById("countdown");
 const resultEl   = document.getElementById("result");
 
-/* STATE */
-let activeTeam   = null;
-let defaultSize  = null;
-let currentState = "waiting";
+/* ===== STATE ===== */
+let activeTeamId = "";
+let timer = null;
+let revealed = false;
 
-/* LOAD DANH SÁCH BÀN */
+/* ===== LOAD TEAMS ===== */
 onValue(ref(db,"config/teams"), snap=>{
-  teamSelect.innerHTML = "<option value=''>-- Chọn bàn --</option>";
+  teamSelect.innerHTML="";
   Object.entries(snap.val()||{}).forEach(([id,t])=>{
-    teamSelect.innerHTML += `<option value="${id}">${t.name}</option>`;
+    teamSelect.innerHTML+=`<option value="${id}">${t.name}</option>`;
   });
 });
 
-/* MC CHỌN BÀN */
-teamSelect.onchange = async () => {
-  const teamId = teamSelect.value;
-  resetUI();
+/* ===== OPEN TEAM ===== */
+openBtn.onclick = async ()=>{
+  const teamId = String(teamSelect.value);
+  activeTeamId = teamId;
 
-  if(!teamId){
-    openBtn.disabled = true;
-    teamTitle.innerText = "Chưa chọn bàn";
-    return;
+  const teamSnap = await get(ref(db,`config/teams/${teamId}`));
+  const team = teamSnap.val();
+
+  /* lấy thời gian từ admin */
+  const settingSnap = await get(ref(db,"config/settings/timeLimitSeconds"));
+  const limitSec = settingSnap.val() || 30;
+
+  const endTime = Date.now() + limitSec*1000;
+
+  await set(ref(db,"runtime/activeTableId"), teamId);
+  await set(ref(db,`teams/${teamId}`),{
+    state:"enabled",
+    total:team.defaultSize
+  });
+  await set(ref(db,"runtime/countdownEnd"), endTime);
+
+  teamTitle.innerText = `Đang mở: ${team.name}`;
+  revealed = false;
+  popup.classList.add("show");
+};
+
+/* ===== WATCH RUNTIME ===== */
+onValue(ref(db,"runtime/countdownEnd"), snap=>{
+  if(!snap.val()) return;
+  startCountdown(snap.val());
+});
+
+/* ===== WATCH MEMBERS ===== */
+onValue(ref(db,"teams"), snap=>{
+  if(!activeTeamId) return;
+  const team = snap.val()?.[activeTeamId];
+  if(!team) return;
+
+  const members = team.members ? Object.values(team.members) : [];
+  const total = team.total || 0;
+
+  /* render list */
+  memberList.innerHTML="";
+  members.forEach((m,i)=>{
+    memberList.innerHTML+=`<li>${i+1}. ${m}</li>`;
+  });
+
+  if(members.length >= total && !revealed){
+    revealResult();
   }
-
-  const cfgSnap = await get(ref(db,`config/teams/${teamId}`));
-  const cfg = cfgSnap.val();
-
-  activeTeam  = teamId;
-  defaultSize = cfg.defaultSize;
-
-  teamTitle.innerText = `TEAM LỘC – ${cfg.name}`;
-  teamInfo.innerText  = `Số người mặc định: ${defaultSize}`;
-
-  /* CHƯA CÓ DATA → COI NHƯ WAITING */
-  currentState = "waiting";
-  updateStateUI("waiting");
-  openBtn.disabled = false;
-
-  await set(ref(db,"runtime/activeTeam"), teamId);
-};
-
-/* MỞ BÀN */
-openBtn.onclick = async () => {
-  if(currentState !== "waiting") return;
-  if(!activeTeam || !defaultSize) return;
-
-  await update(ref(db,`teams/${activeTeam}`),{
-    state: "enabled",
-    expected: defaultSize,
-    members: {}
-  });
-};
-
-/* THEO DÕI BÀN ĐANG ACTIVE */
-onValue(ref(db,"runtime/activeTeam"), snap=>{
-  const teamId = snap.val();
-  if(!teamId) return;
-
-  onValue(ref(db,`teams/${teamId}`), async s=>{
-    const d = s.val();
-
-    /* CHƯA TỒN TẠI DATA → WAITING */
-    if(!d){
-      currentState = "waiting";
-      updateStateUI("waiting");
-      openBtn.disabled = false;
-      return;
-    }
-
-    currentState = d.state || "waiting";
-    updateStateUI(currentState);
-
-    const members = Object.values(d.members||{});
-    countEl.innerText = `Đã tham gia: ${members.length}/${d.expected}`;
-    listEl.innerHTML = members.map(m=>`<li>${m}</li>`).join("");
-
-    /* ĐỦ NGƯỜI → COUNTDOWN */
-    if(currentState==="enabled" && members.length===d.expected){
-      await update(ref(db,`teams/${teamId}`),{state:"counting"});
-      startCountdown(teamId);
-    }
-
-    /* HIỂN THỊ KẾT QUẢ */
-    if(currentState==="revealed"){
-      resultEl.innerHTML = `🎉 ${d.result.title} – ${d.result.content}`;
-    }
-  });
 });
 
-/* COUNTDOWN + RÚT LỘC */
-function startCountdown(teamId){
-  let i = 3;
-  countdown.innerText = i;
+/* ===== COUNTDOWN ===== */
+function startCountdown(endTime){
+  clearInterval(timer);
+  timer = setInterval(()=>{
+    const remain = Math.max(0, Math.ceil((endTime-Date.now())/1000));
+    countdownEl.innerText = remain;
 
-  const t = setInterval(async ()=>{
-    i--;
-    countdown.innerText = i>0 ? i : "🍀";
-
-    if(i<=0){
-      clearInterval(t);
-
-      const rs = await get(ref(db,"config/rewards"));
-      const pool=[];
-      Object.values(rs.val()||{}).forEach(r=>{
-        for(let j=0;j<r.weight;j++) pool.push(r);
-      });
-
-      const pick = pool[Math.floor(Math.random()*pool.length)];
-
-      await update(ref(db,`teams/${teamId}`),{
-        state:"revealed",
-        result:pick
-      });
-
-      /* TỰ ĐỘNG KHÓA BÀN SAU 5 GIÂY */
-      setTimeout(async ()=>{
-        await update(ref(db,`teams/${teamId}`),{state:"locked"});
-      },5000);
+    if(remain<=0 && !revealed){
+      revealResult();
     }
   },1000);
 }
 
-/* UI STATE */
-function updateStateUI(state){
-  stateLabel.className = "state " + state;
+/* ===== REVEAL ===== */
+async function revealResult(){
+  revealed = true;
+  clearInterval(timer);
 
-  const map = {
-    waiting  : "Trạng thái: Chờ mở",
-    enabled  : "Trạng thái: Đang nhận thành viên",
-    counting : "Trạng thái: Đếm ngược",
-    revealed : "Trạng thái: Đã mở lộc",
-    locked   : "Trạng thái: Đã kết thúc"
-  };
+  const rewardSnap = await get(ref(db,"config/rewards"));
+  const rewards = Object.values(rewardSnap.val()||{});
+  const reward = rewards[Math.floor(Math.random()*rewards.length)];
 
-  stateLabel.innerText = map[state] || "";
-  openBtn.disabled = (state !== "waiting");
-}
+  resultEl.innerText = reward.title + " – " + reward.content;
 
-/* RESET UI */
-function resetUI(){
-  countEl.innerText = "";
-  listEl.innerHTML = "";
-  countdown.innerText = "";
-  resultEl.innerText = "";
-  stateLabel.innerText = "Trạng thái: Chờ mở";
+  await set(ref(db,`teams/${activeTeamId}/state`),"revealed");
 }
 </script>
+
 </body>
 </html>
