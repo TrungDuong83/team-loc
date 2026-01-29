@@ -6,53 +6,125 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body{font-family:Arial;background:#7A0C0C;color:#FFD966}
-.box{max-width:1300px;margin:auto;padding:24px}
+body{
+  font-family:Arial;
+  background:#7A0C0C;
+  color:#FFD966;
+}
+.box{
+  max-width:1300px;
+  margin:auto;
+  padding:24px;
+}
 h1,h2{color:#FFD966}
-input,button{padding:8px;margin:4px}
-button{background:#FFD966;border:none;font-weight:bold;cursor:pointer}
-button.danger{background:#C62828;color:#fff}
-table{width:100%;border-collapse:collapse;margin-top:10px}
-td,th{border:1px solid #FFD966;padding:6px;color:#fff;text-align:center}
-.icon{cursor:pointer;margin:0 6px;font-size:18px}
+
+input,button{
+  padding:8px;
+  margin:4px;
+  box-sizing:border-box;
+}
+
+button{
+  background:#FFD966;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+}
+button.danger{
+  background:#C62828;
+  color:#fff;
+}
+button:disabled{
+  opacity:0.4;
+  cursor:not-allowed;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+td,th{
+  border:1px solid #FFD966;
+  padding:6px;
+  color:#fff;
+  vertical-align:middle;
+  text-align:center;
+}
+
+.icon{
+  cursor:pointer;
+  margin:0 6px;
+  font-size:18px;
+}
+.icon.disabled{
+  opacity:0.3;
+  pointer-events:none;
+}
+
 .hidden{display:none}
-.qr-cell{width:90px}
+
+.qr-cell{
+  width:180px;
+}
+.qr-cell div{
+  margin:auto;
+}
+
+/* QR LINK CELL */
+.qr-link-box{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.qr-link-box input{
+  width:100%;
+  max-width:260px;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  font-size:12px;
+}
+
+/* STATE */
 .state.waiting{color:#FFD966}
 .state.enabled{color:#00E676}
 .state.counting{color:#29B6F6}
 .state.revealed{color:#FFEE58}
 .state.locked{color:#EF5350}
 
-/* Modal */
+/* MODAL */
 .modal{
   position:fixed;
   top:0; left:0; right:0; bottom:0;
   background:rgba(0,0,0,0.6);
+  display:none;
   align-items:center;
   justify-content:center;
-  display:none;
 }
-.modal.show{
-  display:flex;
-}
+.modal.show{display:flex}
 
 .modal-content{
   background:#5C0A0A;
   padding:20px;
   border-radius:12px;
   min-width:300px;
+  max-height:70vh;
+  overflow:auto;
 }
 </style>
 </head>
 
 <body>
 
+<!-- LOGIN -->
 <div class="box" id="loginBox">
   <h1>🔐 ADMIN LOGIN</h1>
   <input id="pass" type="password" placeholder="Mật khẩu">
   <button onclick="login()">Đăng nhập</button>
 </div>
 
+<!-- ADMIN -->
 <div class="box hidden" id="adminBox">
 
 <h2>🧹 RESET LƯỢT CHƠI</h2>
@@ -94,7 +166,10 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff;text-align:center}
 <table>
 <thead>
 <tr>
-  <th>Tên</th><th>Nội dung</th><th>Weight</th><th>Thao tác</th>
+  <th>Tên</th>
+  <th>Nội dung</th>
+  <th>Weight</th>
+  <th>Thao tác</th>
 </tr>
 </thead>
 <tbody id="rewardTable"></tbody>
@@ -126,12 +201,12 @@ window.login=()=>{
   if(pass.value===ADMIN_PASS){
     loginBox.classList.add("hidden");
     adminBox.classList.remove("hidden");
-  }else alert("Sai mật khẩu");
+  } else alert("Sai mật khẩu");
 };
 
 /* RESET */
 window.resetAll=async()=>{
-  if(!confirm("Reset lượt chơi hiện tại?")) return;
+  if(!confirm("Reset lượt chơi?")) return;
   await remove(ref(db,"teams"));
   await remove(ref(db,"runtime"));
   alert("Đã reset");
@@ -139,10 +214,11 @@ window.resetAll=async()=>{
 
 /* SAVE TEAM */
 window.saveTeam=async()=>{
+  if(!teamName.value||!teamSize.value) return alert("Thiếu thông tin");
+
   const id = teamId.value || Date.now().toString();
-  const raw=`${PREFIX}|${id}|${SALT}`;
-  const token=btoa(raw);
-  const link=`${location.origin}/join.html#k=${token}`;
+  const token = btoa(`${PREFIX}|${id}|${SALT}`);
+  const link = `${location.origin}/join.html#k=${token}`;
 
   await set(ref(db,`config/teams/${id}`),{
     name:teamName.value,
@@ -154,72 +230,90 @@ window.saveTeam=async()=>{
   teamId.value="";teamName.value="";teamSize.value="";
 };
 
-/* LOAD TEAMS + STATUS + QR */
+/* LOAD TEAMS */
 onValue(ref(db,"config/teams"), async snap=>{
   teamTable.innerHTML="";
-  const runtimeSnap = await get(ref(db,"teams"));
-  const runtimeData = runtimeSnap.val() || {};
-
+  const rtSnap = await get(ref(db,"teams"));
+  const rtData = rtSnap.val()||{};
   const qrQueue=[];
 
   Object.entries(snap.val()||{}).forEach(([id,t])=>{
-    const rt = runtimeData[id] || {};
-    const state = rt.state || "waiting";
-    const members = rt.members ? Object.values(rt.members) : [];
+    const rt = rtData[id]||{};
+    const state = rt.state||"waiting";
+    const members = rt.members?Object.values(rt.members):[];
+    const locked = state!=="waiting";
 
     teamTable.innerHTML+=`
-      <tr>
-        <td>${t.name}</td>
-        <td class="state ${state}">${state}</td>
-        <td><input value="${t.qrLink||''}" readonly style="width:100%"></td>
-        <td class="qr-cell"><div id="qr_${id}"></div></td>
-        <td>
-          ${members.length>0 ? `<span class="icon" onclick="viewMembers('${id}')">👥 (${members.length})</span>` : "-"}
-        </td>
-        <td>
-          <span class="icon" onclick="editTeam('${id}')">✏️</span>
-          <span class="icon" onclick="delTeam('${id}')">🗑</span>
-        </td>
-      </tr>`;
+    <tr>
+      <td>${t.name}</td>
+      <td class="state ${state}">${state}</td>
+      <td>
+        <div class="qr-link-box">
+          <input value="${t.qrLink||""}" readonly>
+          <span class="icon" onclick="copyLink('${t.qrLink||""}')">📋</span>
+        </div>
+      </td>
+      <td class="qr-cell"><div id="qr_${id}"></div></td>
+      <td>
+        ${members.length?`<span class="icon" onclick="viewMembers('${id}')">👥 (${members.length})</span>`:"-"}
+      </td>
+      <td>
+        <span class="icon ${locked?"disabled":""}" onclick="editTeam('${id}')">✏️</span>
+        <span class="icon ${locked?"disabled":""}" onclick="delTeam('${id}')">🗑</span>
+      </td>
+    </tr>`;
+
     if(t.qrLink) qrQueue.push({id,link:t.qrLink});
   });
 
   setTimeout(()=>{
     qrQueue.forEach(q=>{
       const el=document.getElementById(`qr_${q.id}`);
-      if(el){el.innerHTML="";new QRCode(el,{text:q.link,width:70,height:70});}
+      if(el){
+        el.innerHTML="";
+        new QRCode(el,{text:q.link,width:160,height:160});
+      }
     });
   },0);
 });
 
+/* COPY */
+window.copyLink = txt=>{
+  navigator.clipboard.writeText(txt);
+  alert("Đã copy link QR");
+};
+
 /* VIEW MEMBERS */
-window.viewMembers=async(id)=>{
+window.viewMembers=async id=>{
   const snap=await get(ref(db,`teams/${id}/members`));
-  const list=snap.val()||{};
   memberList.innerHTML="";
-  Object.values(list).forEach(n=>{
+  Object.values(snap.val()||{}).forEach(n=>{
     memberList.innerHTML+=`<li>${n}</li>`;
   });
   memberModal.classList.add("show");
 };
-window.closeModal = ()=>{
-  memberModal.classList.remove("show");
-};
+window.closeModal=()=>memberModal.classList.remove("show");
 
 /* EDIT / DELETE TEAM */
 window.editTeam=id=>{
   onValue(ref(db,`config/teams/${id}`),s=>{
     const t=s.val();
-    teamId.value=id;teamName.value=t.name;teamSize.value=t.defaultSize;
+    teamId.value=id;
+    teamName.value=t.name;
+    teamSize.value=t.defaultSize;
   },{onlyOnce:true});
 };
-window.delTeam=id=>remove(ref(db,`config/teams/${id}`));
+window.delTeam=id=>{
+  if(confirm("Xoá bàn này?")) remove(ref(db,`config/teams/${id}`));
+};
 
 /* REWARD */
 window.saveReward=async()=>{
   const k=rewardKey.value||Date.now().toString();
   await set(ref(db,`config/rewards/${k}`),{
-    title:rTitle.value,content:rContent.value,weight:Number(rWeight.value)
+    title:rTitle.value,
+    content:rContent.value,
+    weight:Number(rWeight.value)
   });
   rewardKey.value="";rTitle.value="";rContent.value="";rWeight.value="";
 };
@@ -228,7 +322,9 @@ onValue(ref(db,"config/rewards"),snap=>{
   Object.entries(snap.val()||{}).forEach(([k,r])=>{
     rewardTable.innerHTML+=`
       <tr>
-        <td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td>
+        <td>${r.title}</td>
+        <td>${r.content}</td>
+        <td>${r.weight}</td>
         <td>
           <span class="icon" onclick="editReward('${k}')">✏️</span>
           <span class="icon" onclick="delReward('${k}')">🗑</span>
@@ -242,7 +338,10 @@ window.editReward=k=>{
     rewardKey.value=k;rTitle.value=r.title;rContent.value=r.content;rWeight.value=r.weight;
   },{onlyOnce:true});
 };
-window.delReward=k=>remove(ref(db,`config/rewards/${k}`));
+window.delReward=k=>{
+  if(confirm("Xoá giải này?")) remove(ref(db,`config/rewards/${k}`));
+};
 </script>
+
 </body>
 </html>
