@@ -4,73 +4,213 @@
 <meta charset="UTF-8">
 <title>TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body{
   margin:0;
+  min-height:100vh;
   background:linear-gradient(135deg,#8E0E00,#1F1C18);
   color:#FFD966;
-  font-family:Arial;text-align:center
+  font-family:"Segoe UI",Arial;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
+
 .card{
-  max-width:420px;margin:80px auto;padding:30px;
-  background:rgba(0,0,0,0.4);border-radius:20px
+  width:100%;
+  max-width:420px;
+  margin:20px;
+  padding:32px 28px;
+  background:rgba(0,0,0,0.45);
+  border-radius:24px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  text-align:center;
 }
-h1{font-size:36px}
-input,button{
-  width:100%;padding:14px;margin-top:12px;
-  font-size:18px;border:none
+
+h1{
+  font-size:40px;
+  margin-bottom:16px;
 }
-button{background:#FFD966;font-weight:bold}
-.status{margin-top:10px;color:#fff}
-.result{font-size:24px;color:#00E676;margin-top:15px}
+
+.info-box{
+  background:rgba(255,255,255,0.08);
+  border-radius:16px;
+  padding:16px 12px;
+  margin-bottom:20px;
+}
+
+.info-line{
+  font-size:22px;
+  font-weight:600;
+  margin:8px 0;
+  color:#FFF3CD;
+}
+
+input{
+  width:100%;
+  padding:16px 18px;
+  font-size:20px;
+  border-radius:14px;
+  border:none;
+  outline:none;
+  margin-bottom:16px;
+  text-align:center;
+}
+
+.actions{
+  display:flex;
+  justify-content:center;
+}
+
+button{
+  width:100%;
+  padding:16px;
+  font-size:22px;
+  font-weight:700;
+  border-radius:16px;
+  border:none;
+  background:#FFD966;
+  color:#7A0C0C;
+  cursor:pointer;
+}
+
+button:disabled{
+  background:#999;
+  color:#444;
+  cursor:not-allowed;
+}
+
+.status{
+  margin-top:14px;
+  font-size:18px;
+  color:#ffffff;
+}
+
+.result{
+  margin-top:18px;
+  font-size:26px;
+  font-weight:700;
+  color:#00E676;
+}
 </style>
 </head>
+
 <body>
 <div class="card">
+
   <h1>🍀 TEAM LỘC 🍀</h1>
-  <div id="teamName"></div>
-  <div id="count"></div>
 
-  <input id="name" placeholder="Nhập tên của bạn">
-  <button id="joinBtn">HÁI LỘC</button>
+  <div class="info-box">
+    <div class="info-line" id="teamName">Bàn: —</div>
+    <div class="info-line" id="count">Tham gia: —</div>
+  </div>
 
-  <div class="status" id="status"></div>
+  <input id="nameInput" placeholder="Nhập tên của bạn">
+
+  <div class="actions">
+    <button id="joinBtn" disabled>HÁI LỘC</button>
+  </div>
+
+  <div class="status" id="status">⏳ Đang chờ MC mở bàn…</div>
   <div class="result" id="result"></div>
+
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref,onValue,push,get } from
- "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { ref, onValue, push, get } from
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-let activeTeam=null;
+/* ELEMENTS */
+const teamNameEl = document.getElementById("teamName");
+const countEl    = document.getElementById("count");
+const nameInput  = document.getElementById("nameInput");
+const joinBtn    = document.getElementById("joinBtn");
+const statusEl   = document.getElementById("status");
+const resultEl   = document.getElementById("result");
 
-onValue(ref(db,"runtime/activeTeam"),snap=>{
-  activeTeam=snap.val();
-  teamName.innerText=activeTeam?`Bàn số ${activeTeam}`:"Chưa mở bàn";
+/* STATE */
+let activeTeam = null;
+let joined = false;
+
+/* THEO DÕI BÀN ĐANG ACTIVE */
+onValue(ref(db,"runtime/activeTeam"), snap=>{
+  activeTeam = snap.val();
+
+  if(!activeTeam){
+    teamNameEl.innerText = "Bàn: —";
+    joinBtn.disabled = true;
+    statusEl.innerText = "⏳ Đang chờ MC mở bàn…";
+    return;
+  }
+
+  teamNameEl.innerText = `Bàn số ${activeTeam}`;
 });
 
-joinBtn.onclick=async()=>{
-  if(!activeTeam)return;
-  const teamRef=ref(db,`teams/${activeTeam}`);
-  const snap=await get(teamRef);
-  const d=snap.val();
-  if(d.state!=="enabled") return status.innerText="⏳ Chưa đến lượt bàn này";
-  const members=Object.values(d.members||{});
-  if(members.includes(name.value))
-    return alert("Tên đã tồn tại");
-  await push(ref(db,`teams/${activeTeam}/members`),name.value);
-  status.innerText="✅ Đã tham gia, chờ mở lộc";
+/* THEO DÕI TRẠNG THÁI BÀN */
+onValue(ref(db,"teams"), snap=>{
+  if(!activeTeam) return;
+
+  const d = snap.val()?.[activeTeam];
+  if(!d){
+    countEl.innerText = "Tham gia: 0 / ?";
+    joinBtn.disabled = false;
+    statusEl.innerText = "🟡 Bàn đã sẵn sàng";
+    return;
+  }
+
+  const members = Object.values(d.members||{});
+  countEl.innerText = `Tham gia: ${members.length}/${d.expected}`;
+
+  if(d.state === "enabled"){
+    joinBtn.disabled = joined;
+    statusEl.innerText = "🟢 Bàn đang mở – hãy nhập tên và Hái Lộc";
+  }else if(d.state === "counting"){
+    joinBtn.disabled = true;
+    statusEl.innerText = "⏱️ Đang đếm ngược…";
+  }else if(d.state === "revealed"){
+    joinBtn.disabled = true;
+    statusEl.innerText = "🎉 Đã mở lộc";
+    resultEl.innerHTML = `${d.result.title}<br>${d.result.content}`;
+  }else if(d.state === "locked"){
+    joinBtn.disabled = true;
+    statusEl.innerText = "🔒 Bàn đã kết thúc";
+  }
+});
+
+/* HÁI LỘC */
+joinBtn.onclick = async ()=>{
+  if(joined) return;
+  if(!activeTeam) return;
+
+  const name = nameInput.value.trim();
+  if(!name){
+    alert("Vui lòng nhập tên");
+    return;
+  }
+
+  const teamRef = ref(db,`teams/${activeTeam}`);
+  const snap = await get(teamRef);
+  const d = snap.val();
+
+  if(d.state !== "enabled"){
+    statusEl.innerText = "⛔ Bàn chưa mở hoặc đã đóng";
+    return;
+  }
+
+  const members = Object.values(d.members||{});
+  if(members.includes(name)){
+    alert("Tên đã được nhập trong bàn");
+    return;
+  }
+
+  await push(ref(db,`teams/${activeTeam}/members`), name);
+  joined = true;
+  joinBtn.disabled = true;
+  statusEl.innerText = "✅ Đã tham gia – chờ mở lộc";
 };
-
-onValue(ref(db,"teams"),snap=>{
-  if(!activeTeam)return;
-  const d=snap.val()?.[activeTeam];
-  if(!d)return;
-  count.innerText=`Đã tham gia: ${Object.keys(d.members||{}).length}/${d.expected||"?"}`;
-  if(d.state==="revealed")
-    result.innerHTML=`🎉 ${d.result.title}<br>${d.result.content}`;
-});
 </script>
+
 </body>
 </html>
