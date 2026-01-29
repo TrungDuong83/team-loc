@@ -19,7 +19,7 @@ body{
 
 .card{
   width:92%;
-  max-width:1200px;
+  max-width:1300px;
   background:linear-gradient(145deg,#6d0f0f,#3f0707);
   border-radius:28px;
   padding:28px;
@@ -29,7 +29,7 @@ body{
 h1{
   text-align:center;
   margin:0 0 20px;
-  font-size:40px;
+  font-size:42px;
   letter-spacing:1px;
 }
 
@@ -64,11 +64,38 @@ button:disabled{
   margin-top:20px;
 }
 
+/* DASHBOARD */
+.dashboard{
+  margin-top:28px;
+  background:rgba(0,0,0,0.25);
+  border-radius:22px;
+  padding:22px;
+}
+.dashboard-title{
+  text-align:center;
+  font-size:30px;
+  margin-bottom:16px;
+}
+.dashboard table{
+  width:100%;
+  border-collapse:collapse;
+}
+.dashboard th,
+.dashboard td{
+  border:1px solid #FFD966;
+  padding:14px;
+  font-size:20px;
+}
+.dashboard th{
+  background:rgba(255,217,102,0.15);
+  text-align:center;
+}
+
 /* POPUP */
 .popup{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.8);
+  background:rgba(0,0,0,0.85);
   display:none;
   align-items:center;
   justify-content:center;
@@ -157,6 +184,20 @@ button:disabled{
   </div>
 
   <div class="team-title" id="teamTitle">Chưa mở bàn</div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard">
+    <div class="dashboard-title">📊 TỔNG KẾT TEAM LỘC</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Bàn</th>
+          <th>Kết quả</th>
+        </tr>
+      </thead>
+      <tbody id="dashboardBody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- POPUP -->
@@ -164,11 +205,8 @@ button:disabled{
   <div class="popup-content">
     <h2>🍀 TEAM LỘC 🍀</h2>
     <div class="countdown" id="countdown">60</div>
-
     <div id="memberGrid" class="member-grid"></div>
-
     <div class="result" id="resultText"></div>
-
     <button class="close-btn" id="closePopup">ĐÓNG</button>
   </div>
 </div>
@@ -192,38 +230,34 @@ const memberGrid = document.getElementById("memberGrid");
 const resultText = document.getElementById("resultText");
 const closePopup = document.getElementById("closePopup");
 const fireSound = document.getElementById("fireSound");
+const dashboardBody = document.getElementById("dashboardBody");
 
 let activeTeamId = "";
 let timer = null;
 let revealed = false;
 
-/* ===== LOAD TEAMS (ĐÚNG NGUỒN) ===== */
+/* LOAD TEAMS (CONFIG + STATE) */
 onValue(ref(db,"config/teams"), async snap=>{
   teamSelect.innerHTML="";
-  const teamsCfg = snap.val() || {};
-
-  for(const [id,cfg] of Object.entries(teamsCfg)){
-    const rtSnap = await get(ref(db,`teams/${id}/state`));
-    const state = rtSnap.val();
-
+  const cfg = snap.val()||{};
+  for(const [id,t] of Object.entries(cfg)){
+    const stSnap = await get(ref(db,`teams/${id}/state`));
+    const state = stSnap.val();
     const opt = document.createElement("option");
     opt.value = id;
-
     if(state==="revealed"){
-      opt.text = `${cfg.name} (ĐÃ CHƠI)`;
+      opt.text = `${t.name} (ĐÃ CHƠI)`;
       opt.disabled = true;
     }else{
-      opt.text = cfg.name;
+      opt.text = t.name;
     }
     teamSelect.appendChild(opt);
   }
 });
 
-/* ===== OPEN TEAM ===== */
+/* OPEN TEAM */
 openBtn.onclick = async ()=>{
   const teamId = teamSelect.value;
-  if(!teamId) return;
-
   const stateSnap = await get(ref(db,`teams/${teamId}/state`));
   if(stateSnap.val()==="revealed"){
     alert("Bàn này đã chơi xong");
@@ -244,7 +278,7 @@ openBtn.onclick = async ()=>{
   startCountdown();
 };
 
-/* ===== WATCH MEMBERS ===== */
+/* WATCH MEMBERS */
 onValue(ref(db,"teams"), snap=>{
   if(!activeTeamId) return;
   const team = snap.val()?.[activeTeamId];
@@ -258,7 +292,7 @@ onValue(ref(db,"teams"), snap=>{
   }
 });
 
-/* ===== COUNTDOWN ===== */
+/* COUNTDOWN */
 function startCountdown(){
   let remain = TIME_LIMIT;
   countdownEl.innerText = remain;
@@ -272,7 +306,7 @@ function startCountdown(){
   },1000);
 }
 
-/* ===== REVEAL ===== */
+/* REVEAL */
 async function revealResult(){
   revealed = true;
   clearInterval(timer);
@@ -290,7 +324,22 @@ async function revealResult(){
   await set(ref(db,"runtime/activeTableId"), null);
 }
 
-/* ===== UI ===== */
+/* DASHBOARD */
+onValue(ref(db,"teams"), async snap=>{
+  dashboardBody.innerHTML="";
+  const teams = snap.val()||{};
+  for(const [id,t] of Object.entries(teams)){
+    if(t.state==="revealed" && t.result){
+      const cfgSnap = await get(ref(db,`config/teams/${id}`));
+      const name = cfgSnap.val()?.name || id;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${name}</td><td>${t.result.title} – ${t.result.content}</td>`;
+      dashboardBody.appendChild(tr);
+    }
+  }
+});
+
+/* UI */
 function renderMembers(list){
   memberGrid.innerHTML="";
   memberGrid.className="member-grid "+(list.length<=5?"single":"");
