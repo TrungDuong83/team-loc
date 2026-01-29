@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>MC – TEAM LỘC</title>
+<title>CHUNG TAY HÁI LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -29,7 +29,8 @@ body{
 h1{
   text-align:center;
   margin:0 0 20px;
-  font-size:36px;
+  font-size:40px;
+  letter-spacing:1px;
 }
 
 .control-bar{
@@ -146,10 +147,12 @@ button:disabled{
 <body>
 
 <div class="card">
-  <h1>🎤 MC – TEAM LỘC</h1>
+  <h1>CHUNG TAY HÁI LỘC</h1>
 
   <div class="control-bar">
-    <select id="teamSelect"></select>
+    <select id="teamSelect">
+      <option>Đang tải danh sách bàn...</option>
+    </select>
     <button id="openBtn">MỞ BÀN</button>
   </div>
 
@@ -194,27 +197,35 @@ let activeTeamId = "";
 let timer = null;
 let revealed = false;
 
-/* LOAD TEAMS */
-onValue(ref(db,"teams"), snap=>{
+/* ===== LOAD TEAMS (ĐÚNG NGUỒN) ===== */
+onValue(ref(db,"config/teams"), async snap=>{
   teamSelect.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([id,t])=>{
+  const teamsCfg = snap.val() || {};
+
+  for(const [id,cfg] of Object.entries(teamsCfg)){
+    const rtSnap = await get(ref(db,`teams/${id}/state`));
+    const state = rtSnap.val();
+
     const opt = document.createElement("option");
     opt.value = id;
-    if(t.state==="revealed"){
-      opt.text = t.name+" (ĐÃ CHƠI)";
+
+    if(state==="revealed"){
+      opt.text = `${cfg.name} (ĐÃ CHƠI)`;
       opt.disabled = true;
     }else{
-      opt.text = t.name;
+      opt.text = cfg.name;
     }
     teamSelect.appendChild(opt);
-  });
+  }
 });
 
-/* OPEN TEAM */
+/* ===== OPEN TEAM ===== */
 openBtn.onclick = async ()=>{
   const teamId = teamSelect.value;
-  const teamSnap = await get(ref(db,`teams/${teamId}`));
-  if(teamSnap.val()?.state==="revealed"){
+  if(!teamId) return;
+
+  const stateSnap = await get(ref(db,`teams/${teamId}/state`));
+  if(stateSnap.val()==="revealed"){
     alert("Bàn này đã chơi xong");
     return;
   }
@@ -222,15 +233,18 @@ openBtn.onclick = async ()=>{
   activeTeamId = teamId;
   revealed = false;
 
+  const cfgSnap = await get(ref(db,`config/teams/${teamId}`));
+  teamTitle.innerText = "Đang mở: "+cfgSnap.val().name;
+
   await set(ref(db,"runtime/activeTableId"), teamId);
   await set(ref(db,`teams/${teamId}/state`),"enabled");
+  await set(ref(db,`teams/${teamId}/total`), cfgSnap.val().defaultSize);
 
-  teamTitle.innerText = "Đang mở: "+teamSnap.val().name;
   popup.classList.add("show");
   startCountdown();
 };
 
-/* WATCH MEMBERS */
+/* ===== WATCH MEMBERS ===== */
 onValue(ref(db,"teams"), snap=>{
   if(!activeTeamId) return;
   const team = snap.val()?.[activeTeamId];
@@ -240,11 +254,11 @@ onValue(ref(db,"teams"), snap=>{
   renderMembers(members);
 
   if(members.length >= team.total && !revealed){
-    revealResult(team);
+    revealResult();
   }
 });
 
-/* COUNTDOWN */
+/* ===== COUNTDOWN ===== */
 function startCountdown(){
   let remain = TIME_LIMIT;
   countdownEl.innerText = remain;
@@ -258,7 +272,7 @@ function startCountdown(){
   },1000);
 }
 
-/* REVEAL */
+/* ===== REVEAL ===== */
 async function revealResult(){
   revealed = true;
   clearInterval(timer);
@@ -272,11 +286,11 @@ async function revealResult(){
   launchFirework();
 
   await set(ref(db,`teams/${activeTeamId}/state`),"revealed");
-  await set(ref(db,`teams/${activeTeamId}/result`),reward);
-  await set(ref(db,"runtime/activeTableId"),null);
+  await set(ref(db,`teams/${activeTeamId}/result`), reward);
+  await set(ref(db,"runtime/activeTableId"), null);
 }
 
-/* UI */
+/* ===== UI ===== */
 function renderMembers(list){
   memberGrid.innerHTML="";
   memberGrid.className="member-grid "+(list.length<=5?"single":"");
@@ -287,9 +301,9 @@ function renderMembers(list){
 
 function launchFirework(){
   for(let i=0;i<20;i++){
-    const f = document.createElement("div");
+    const f=document.createElement("div");
     f.className="firework";
-    f.style.background="hsl("+Math.random()*360+",100%,60%)";
+    f.style.background=`hsl(${Math.random()*360},100%,60%)`;
     f.style.left="50%";
     f.style.top="50%";
     f.style.setProperty("--x",(Math.random()*400-200)+"px");
