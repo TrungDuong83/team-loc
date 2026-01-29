@@ -12,7 +12,7 @@ body{
   max-width:900px;margin:auto;padding:24px
 }
 h1,h2{color:#FFD966}
-input,button{padding:10px;margin:6px}
+input,button,select{padding:10px;margin:6px}
 button{background:#FFD966;border:none;font-weight:bold}
 .danger{background:#C62828;color:#fff}
 table{width:100%;border-collapse:collapse}
@@ -20,6 +20,7 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
 .hidden{display:none}
 </style>
 </head>
+
 <body>
 
 <div class="box" id="loginBox">
@@ -29,8 +30,10 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
 </div>
 
 <div class="box hidden" id="adminBox">
-  <h2>🧹 RESET TOÀN BỘ DỮ LIỆU</h2>
-  <button class="danger" onclick="resetAll()">RESET ALL</button>
+
+  <h2>🧹 RESET DỮ LIỆU LƯỢT CHƠI</h2>
+  <p>(Không xoá cấu hình bàn & giải thưởng)</p>
+  <button class="danger" onclick="resetAll()">RESET LƯỢT CHƠI</button>
 
   <hr>
 
@@ -44,16 +47,17 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
     <thead><tr><th>Mã</th><th>Tên</th><th>Số người</th><th>Xoá</th></tr></thead>
     <tbody id="teamList"></tbody>
   </table>
-   <hr>
-<h2>🔐 TẠO QR CHO BÀN (MÃ HOÁ)</h2>
 
-<select id="qrTeamSelect"></select>
-<button onclick="generateQR()">TẠO QR</button>
+  <hr>
 
-<p><b>Link QR:</b></p>
-<input id="qrLink" style="width:100%" readonly>
+  <h2>🔐 TẠO QR CHO BÀN (MÃ HOÁ)</h2>
+  <select id="qrTeamSelect"></select>
+  <button onclick="generateQR()">TẠO QR</button>
 
-<div id="qrBox" style="margin-top:20px"></div>
+  <p><b>Link QR:</b></p>
+  <input id="qrLink" style="width:100%" readonly>
+  <div id="qrBox" style="margin-top:20px"></div>
+
   <hr>
 
   <h2>🎁 GIẢI THƯỞNG</h2>
@@ -66,82 +70,106 @@ td,th{border:1px solid #FFD966;padding:6px;color:#fff}
     <thead><tr><th>Tên</th><th>Nội dung</th><th>Weight</th><th>Xoá</th></tr></thead>
     <tbody id="rewardList"></tbody>
   </table>
+
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
 <script type="module">
 import { db } from "./firebase.js";
-import { ref,set,onValue,remove } from
+import { ref, set, onValue, remove } from
  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const ADMIN_PASS="YEP2026";
-onst PREFIX = "TEAMLOC";
+const ADMIN_PASS = "YEP2026";
+const PREFIX = "TEAMLOC";
 const SALT   = "2026";
 
-window.login=()=>{
-  if(pass.value===ADMIN_PASS){
+/* LOGIN */
+window.login = ()=>{
+  if(pass.value === ADMIN_PASS){
     loginBox.classList.add("hidden");
     adminBox.classList.remove("hidden");
   } else alert("Sai mật khẩu");
 };
 
+/* RESET LƯỢT CHƠI */
+window.resetAll = async ()=>{
+  if(!confirm("Reset dữ liệu lượt chơi hiện tại?")) return;
+  await remove(ref(db,"teams"));
+  await remove(ref(db,"runtime"));
+  alert("Đã reset lượt chơi");
+};
+
+/* SAVE TEAM */
+window.saveTeam = async ()=>{
+  if(!teamId.value) return alert("Nhập mã bàn");
+  await set(ref(db,`config/teams/${teamId.value}`),{
+    name: teamName.value,
+    defaultSize: Number(teamSize.value)
+  });
+};
+
+/* LOAD TEAMS */
+onValue(ref(db,"config/teams"), snap=>{
+  teamList.innerHTML="";
+  qrTeamSelect.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([id,t])=>{
+    teamList.innerHTML+=`
+      <tr>
+        <td>${id}</td>
+        <td>${t.name}</td>
+        <td>${t.defaultSize}</td>
+        <td><button onclick="delTeam('${id}')">X</button></td>
+      </tr>`;
+    qrTeamSelect.innerHTML += `<option value="${id}">${t.name}</option>`;
+  });
+});
+
+window.delTeam = id => remove(ref(db,`config/teams/${id}`));
+
+/* REWARD */
+window.addReward = async ()=>{
+  const k = Date.now();
+  await set(ref(db,`config/rewards/${k}`),{
+    title: rTitle.value,
+    content: rContent.value,
+    weight: Number(rWeight.value)
+  });
+};
+
+onValue(ref(db,"config/rewards"), snap=>{
+  rewardList.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([k,r])=>{
+    rewardList.innerHTML+=`
+      <tr>
+        <td>${r.title}</td>
+        <td>${r.content}</td>
+        <td>${r.weight}</td>
+        <td><button onclick="delReward('${k}')">X</button></td>
+      </tr>`;
+  });
+});
+
+window.delReward = k => remove(ref(db,`config/rewards/${k}`));
+
+/* GENERATE QR */
 window.generateQR = ()=>{
-  const teamId = qrTeamSelect.value;
-  const raw = `${PREFIX}|${teamId}|${SALT}`;
+  const teamIdVal = qrTeamSelect.value;
+  if(!teamIdVal) return alert("Chọn bàn");
+
+  const raw = `${PREFIX}|${teamIdVal}|${SALT}`;
   const token = btoa(raw);
-
   const url = `${location.origin}/join.html#k=${token}`;
-  qrLink.value = url;
 
+  qrLink.value = url;
   document.getElementById("qrBox").innerHTML = "";
-  new QRCode(document.getElementById("qrBox"), {
+  new QRCode(document.getElementById("qrBox"),{
     text: url,
     width: 220,
     height: 220
   });
 };
-window.resetAll=async()=>{
-  if(!confirm("RESET toàn bộ dữ liệu?"))return;
-  await remove(ref(db,"teams"));
-  await remove(ref(db,"runtime"));
-  alert("Đã reset");
-};
-
-window.saveTeam=async()=>{
-  await set(ref(db,`config/teams/${teamId.value}`),{
-    name:teamName.value,
-    defaultSize:Number(teamSize.value)
-  });
-};
-
-onValue(ref(db,"config/teams"),snap=>{
-  teamList.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([id,t])=>{
-    teamList.innerHTML+=`
-      <tr>
-        <td>${id}</td><td>${t.name}</td><td>${t.defaultSize}</td>
-        <td><button onclick="delTeam('${id}')">X</button></td>
-      </tr>`;
-  });
-});
-window.delTeam=id=>remove(ref(db,`config/teams/${id}`));
-
-window.addReward=async()=>{
-  const k=Date.now();
-  await set(ref(db,`config/rewards/${k}`),{
-    title:rTitle.value,content:rContent.value,weight:Number(rWeight.value)
-  });
-};
-onValue(ref(db,"config/rewards"),snap=>{
-  rewardList.innerHTML="";
-  Object.entries(snap.val()||{}).forEach(([k,r])=>{
-    rewardList.innerHTML+=`
-      <tr>
-        <td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td>
-        <td><button onclick="delReward('${k}')">X</button></td>
-      </tr>`;
-  });
-});
-window.delReward=k=>remove(ref(db,`config/rewards/${k}`));
 </script>
+
 </body>
 </html>
