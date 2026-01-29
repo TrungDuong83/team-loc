@@ -5,13 +5,12 @@
 <title>DASHBOARD – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family: Arial; background:#0A2540; color:#fff }
-h1 { color:#FACC15 }
-table { width:100%; border-collapse:collapse }
-td, th { border:1px solid #555; padding:10px; font-size:20px }
+body{background:#5C0A0A;color:#FFD966;font-family:Arial}
+h1{text-align:center}
+table{width:90%;margin:auto;border-collapse:collapse}
+td,th{border:1px solid #FFD966;padding:10px;font-size:20px}
 </style>
 </head>
-
 <body>
 <h1>📊 TỔNG KẾT TEAM LỘC</h1>
 <table>
@@ -21,18 +20,16 @@ td, th { border:1px solid #555; padding:10px; font-size:20px }
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, onValue } from
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { ref,onValue } from
+ "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-onValue(ref(db, "teams"), snap => {
-  summary.innerHTML = "";
-  Object.entries(snap.val() || {}).forEach(([id, t]) => {
-    if (t.result) {
-      summary.innerHTML += `
-        <tr>
-          <td>Bàn ${id}</td>
-          <td>${t.result.title} – ${t.result.content}</td>
-        </tr>`;
+onValue(ref(db,"teams"),snap=>{
+  summary.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([id,t])=>{
+    if(t.result){
+      summary.innerHTML+=`
+        <tr><td>Bàn ${id}</td>
+        <td>${t.result.title} – ${t.result.content}</td></tr>`;
     }
   });
 });

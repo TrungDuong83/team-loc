@@ -5,68 +5,117 @@
 <title>ADMIN – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family: Arial; background:#0A2540; color:#fff }
-.box { max-width:600px; margin:auto; padding:30px }
-input, button { width:100%; padding:12px; margin-top:10px; font-size:16px }
-button { background:#FACC15; border:none; font-weight:bold }
-table { width:100%; margin-top:20px; border-collapse:collapse }
-td, th { border:1px solid #555; padding:6px }
-.hidden { display:none }
+body{
+  margin:0;font-family:Arial;background:#7A0C0C;color:#FFD966
+}
+.box{
+  max-width:900px;margin:auto;padding:24px
+}
+h1,h2{color:#FFD966}
+input,button{padding:10px;margin:6px}
+button{background:#FFD966;border:none;font-weight:bold}
+.danger{background:#C62828;color:#fff}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #FFD966;padding:6px;color:#fff}
+.hidden{display:none}
 </style>
 </head>
-
 <body>
+
 <div class="box" id="loginBox">
-  <h2>🔐 ADMIN LOGIN</h2>
-  <input id="password" type="password" placeholder="Nhập mật khẩu">
-  <button onclick="login()">ĐĂNG NHẬP</button>
+  <h1>🔐 ADMIN LOGIN</h1>
+  <input id="pass" type="password" placeholder="Mật khẩu">
+  <button onclick="login()">Đăng nhập</button>
 </div>
 
 <div class="box hidden" id="adminBox">
-  <h2>🎁 CẤU HÌNH GIẢI THƯỞNG</h2>
+  <h2>🧹 RESET TOÀN BỘ DỮ LIỆU</h2>
+  <button class="danger" onclick="resetAll()">RESET ALL</button>
 
-  <input id="title" placeholder="Tên giải (VD: Lộc Đồng)">
-  <input id="content" placeholder="Nội dung (VD: 100.000/người)">
-  <input id="weight" type="number" placeholder="Trọng số (VD: 3)">
-  <button id="add">THÊM GIẢI</button>
+  <hr>
+
+  <h2>🪑 CẤU HÌNH BÀN</h2>
+  <input id="teamId" placeholder="Mã bàn (VD: 1)">
+  <input id="teamName" placeholder="Tên bàn (VD: Bàn 1)">
+  <input id="teamSize" type="number" placeholder="Số người mặc định">
+  <button onclick="saveTeam()">Lưu / Cập nhật</button>
 
   <table>
-    <thead><tr><th>Tên</th><th>Nội dung</th><th>Weight</th></tr></thead>
-    <tbody id="list"></tbody>
+    <thead><tr><th>Mã</th><th>Tên</th><th>Số người</th><th>Xoá</th></tr></thead>
+    <tbody id="teamList"></tbody>
+  </table>
+
+  <hr>
+
+  <h2>🎁 GIẢI THƯỞNG</h2>
+  <input id="rTitle" placeholder="Tên giải">
+  <input id="rContent" placeholder="Nội dung">
+  <input id="rWeight" type="number" placeholder="Weight">
+  <button onclick="addReward()">Thêm</button>
+
+  <table>
+    <thead><tr><th>Tên</th><th>Nội dung</th><th>Weight</th><th>Xoá</th></tr></thead>
+    <tbody id="rewardList"></tbody>
   </table>
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, push, onValue } from
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { ref,set,onValue,remove } from
+ "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const ADMIN_PASS = "YEP2026"; // đổi tại đây
+const ADMIN_PASS="YEP2026";
 
-window.login = () => {
-  if (password.value === ADMIN_PASS) {
+window.login=()=>{
+  if(pass.value===ADMIN_PASS){
     loginBox.classList.add("hidden");
     adminBox.classList.remove("hidden");
-  } else {
-    alert("Sai mật khẩu");
-  }
+  } else alert("Sai mật khẩu");
 };
 
-const rewardRef = ref(db, "config/rewards");
-add.onclick = async () => {
-  await push(rewardRef, {
-    title: title.value,
-    content: content.value,
-    weight: Number(weight.value || 1)
+window.resetAll=async()=>{
+  if(!confirm("RESET toàn bộ dữ liệu?"))return;
+  await remove(ref(db,"teams"));
+  await remove(ref(db,"runtime"));
+  alert("Đã reset");
+};
+
+window.saveTeam=async()=>{
+  await set(ref(db,`config/teams/${teamId.value}`),{
+    name:teamName.value,
+    defaultSize:Number(teamSize.value)
   });
 };
 
-onValue(rewardRef, snap => {
-  list.innerHTML = "";
-  Object.values(snap.val() || {}).forEach(r => {
-    list.innerHTML += `<tr><td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td></tr>`;
+onValue(ref(db,"config/teams"),snap=>{
+  teamList.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([id,t])=>{
+    teamList.innerHTML+=`
+      <tr>
+        <td>${id}</td><td>${t.name}</td><td>${t.defaultSize}</td>
+        <td><button onclick="delTeam('${id}')">X</button></td>
+      </tr>`;
   });
 });
+window.delTeam=id=>remove(ref(db,`config/teams/${id}`));
+
+window.addReward=async()=>{
+  const k=Date.now();
+  await set(ref(db,`config/rewards/${k}`),{
+    title:rTitle.value,content:rContent.value,weight:Number(rWeight.value)
+  });
+};
+onValue(ref(db,"config/rewards"),snap=>{
+  rewardList.innerHTML="";
+  Object.entries(snap.val()||{}).forEach(([k,r])=>{
+    rewardList.innerHTML+=`
+      <tr>
+        <td>${r.title}</td><td>${r.content}</td><td>${r.weight}</td>
+        <td><button onclick="delReward('${k}')">X</button></td>
+      </tr>`;
+  });
+});
+window.delReward=k=>remove(ref(db,`config/rewards/${k}`));
 </script>
 </body>
 </html>

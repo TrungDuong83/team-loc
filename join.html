@@ -5,71 +5,72 @@
 <title>TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family: Arial; background:#06223A; color:#fff; text-align:center }
-.box { max-width:420px; margin:auto; padding:30px }
-input, button { width:100%; padding:12px; font-size:18px; margin-top:12px }
-button { background:#FACC15; border:none; font-weight:bold }
+body{
+  margin:0;
+  background:linear-gradient(135deg,#8E0E00,#1F1C18);
+  color:#FFD966;
+  font-family:Arial;text-align:center
+}
+.card{
+  max-width:420px;margin:80px auto;padding:30px;
+  background:rgba(0,0,0,0.4);border-radius:20px
+}
+h1{font-size:36px}
+input,button{
+  width:100%;padding:14px;margin-top:12px;
+  font-size:18px;border:none
+}
+button{background:#FFD966;font-weight:bold}
+.status{margin-top:10px;color:#fff}
+.result{font-size:24px;color:#00E676;margin-top:15px}
 </style>
 </head>
-
 <body>
-<div class="box">
-  <h2 id="title"></h2>
+<div class="card">
+  <h1>🍀 TEAM LỘC 🍀</h1>
+  <div id="teamName"></div>
   <div id="count"></div>
 
   <input id="name" placeholder="Nhập tên của bạn">
-  <button id="joinBtn">THAM GIA</button>
+  <button id="joinBtn">HÁI LỘC</button>
 
-  <div id="status"></div>
-  <div id="result"></div>
+  <div class="status" id="status"></div>
+  <div class="result" id="result"></div>
 </div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, push, onValue, get } from
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { ref,onValue,push,get } from
+ "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const team = new URLSearchParams(location.search).get("team");
-const teamRef = ref(db, `teams/${team}`);
-title.innerText = `TEAM LỘC – BÀN ${team}`;
+let activeTeam=null;
 
-let joined = false;
-
-onValue(teamRef, snap => {
-  const d = snap.val();
-  if (!d) return;
-
-  const c = Object.keys(d.members || {}).length;
-  count.innerText = `Đã tham gia: ${c}/${d.expected || "?"}`;
-
-  if (d.state !== "enabled") {
-    joinBtn.disabled = true;
-    status.innerText = "⏳ Bàn chưa được mở";
-  }
-
-  if (d.state === "revealed" && d.result) {
-    result.innerHTML = `🎉 <b>${d.result.title}</b><br>${d.result.content}`;
-  }
+onValue(ref(db,"runtime/activeTeam"),snap=>{
+  activeTeam=snap.val();
+  teamName.innerText=activeTeam?`Bàn số ${activeTeam}`:"Chưa mở bàn";
 });
 
-joinBtn.onclick = async () => {
-  if (joined) return;
-
-  const n = name.value.trim();
-  if (!n) return alert("Nhập tên");
-
-  const snap = await get(teamRef);
-  const data = snap.val();
-  const members = Object.values(data.members || {});
-  if (members.includes(n)) return alert("Tên đã tồn tại");
-
-  if (data.state !== "enabled") return alert("Bàn chưa mở");
-
-  await push(ref(db, `teams/${team}/members`), n);
-  joined = true;
-  joinBtn.disabled = true;
-  status.innerText = "✅ Đã tham gia";
+joinBtn.onclick=async()=>{
+  if(!activeTeam)return;
+  const teamRef=ref(db,`teams/${activeTeam}`);
+  const snap=await get(teamRef);
+  const d=snap.val();
+  if(d.state!=="enabled") return status.innerText="⏳ Chưa đến lượt bàn này";
+  const members=Object.values(d.members||{});
+  if(members.includes(name.value))
+    return alert("Tên đã tồn tại");
+  await push(ref(db,`teams/${activeTeam}/members`),name.value);
+  status.innerText="✅ Đã tham gia, chờ mở lộc";
 };
+
+onValue(ref(db,"teams"),snap=>{
+  if(!activeTeam)return;
+  const d=snap.val()?.[activeTeam];
+  if(!d)return;
+  count.innerText=`Đã tham gia: ${Object.keys(d.members||{}).length}/${d.expected||"?"}`;
+  if(d.state==="revealed")
+    result.innerHTML=`🎉 ${d.result.title}<br>${d.result.content}`;
+});
 </script>
 </body>
 </html>

@@ -5,97 +5,116 @@
 <title>MC – TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background:#0A2540;
-  color:#fff;
+body{
+  margin:0;
+  background:radial-gradient(circle,#9B1B1B,#5C0A0A);
+  color:#FFD966;
+  font-family:"Segoe UI",Arial;
 }
-h1 { color:#FACC15; font-size:48px }
-h2 { font-size:32px }
-.count { font-size:28px }
-.list li { font-size:24px }
-.countdown { font-size:120px; color:#FACC15; text-align:center }
-.result { font-size:36px; margin-top:20px }
+.center{max-width:1200px;margin:auto;padding:40px;text-align:center}
+h1{font-size:64px;margin:10px}
+h2{font-size:36px}
+.count{font-size:28px;color:#fff}
+ul{list-style:none;padding:0}
+li{font-size:26px;color:#fff}
+button,select{
+  padding:12px 20px;
+  font-size:20px;
+  background:#FFD966;border:none;font-weight:bold
+}
+.countdown{font-size:140px;color:#00E676}
+.result{font-size:42px;margin-top:20px;color:#00E676}
 </style>
 </head>
-
 <body>
-<h1 id="title"></h1>
+<div class="center">
+  <h1>🍀 TEAM LỘC 🍀</h1>
+  <h2 id="teamTitle">Chưa chọn bàn</h2>
 
-<label>Số người có mặt:</label>
-<select id="expected">
-  <option value="">-- chọn --</option>
-  <option>1</option><option>2</option><option>3</option><option>4</option>
-  <option>5</option><option>6</option><option>7</option><option>8</option>
-  <option>9</option><option>10</option>
-</select>
-<button id="open">MỞ BÀN</button>
+  <select id="teamSelect"></select>
+  <select id="expected"></select>
+  <button id="open">MỞ BÀN</button>
 
-<div class="count" id="count"></div>
-<ul class="list" id="list"></ul>
+  <div class="count" id="count"></div>
+  <ul id="list"></ul>
 
-<div class="countdown" id="countdown"></div>
-<div class="result" id="result"></div>
+  <div class="countdown" id="countdown"></div>
+  <div class="result" id="result"></div>
+</div>
 
 <script type="module">
 import { db } from "./firebase.js";
-import { ref, onValue, update, get } from
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { ref,onValue,update,set,get } from
+ "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const team = new URLSearchParams(location.search).get("team");
-const teamRef = ref(db, `teams/${team}`);
-title.innerText = `TEAM LỘC – BÀN ${team}`;
+const teamSelect=document.getElementById("teamSelect");
+const expected=document.getElementById("expected");
+const teamTitle=document.getElementById("teamTitle");
 
-open.onclick = async () => {
-  await update(teamRef, {
-    expected: Number(expected.value),
-    state: "enabled",
-    members: {}
+onValue(ref(db,"config/teams"),snap=>{
+  teamSelect.innerHTML="<option value=''>--Chọn bàn--</option>";
+  Object.entries(snap.val()||{}).forEach(([id,t])=>{
+    teamSelect.innerHTML+=`<option value="${id}">${t.name}</option>`;
+  });
+});
+
+teamSelect.onchange=async()=>{
+  const id=teamSelect.value;
+  if(!id)return;
+  await set(ref(db,"runtime/activeTeam"),id);
+  const cfg=await get(ref(db,`config/teams/${id}`));
+  expected.innerHTML="";
+  for(let i=1;i<=cfg.val().defaultSize;i++)
+    expected.innerHTML+=`<option>${i}</option>`;
+  teamTitle.innerText=`TEAM LỘC – ${cfg.val().name}`;
+};
+
+open.onclick=async()=>{
+  const team=(await get(ref(db,"runtime/activeTeam"))).val();
+  await update(ref(db,`teams/${team}`),{
+    state:"enabled",
+    expected:Number(expected.value),
+    members:{}
   });
 };
 
-onValue(teamRef, async snap => {
-  const d = snap.val();
-  if (!d) return;
+onValue(ref(db,"runtime/activeTeam"),snap=>{
+  if(!snap.val())return;
+  const team=snap.val();
+  onValue(ref(db,`teams/${team}`),async s=>{
+    const d=s.val(); if(!d)return;
+    const m=Object.values(d.members||{});
+    count.innerText=`Đã tham gia: ${m.length}/${d.expected||"?"}`;
+    list.innerHTML=m.map(x=>`<li>${x}</li>`).join("");
 
-  const m = Object.values(d.members || {});
-  count.innerText = `Đã tham gia: ${m.length}/${d.expected || "?"}`;
-  list.innerHTML = m.map(x => `<li>${x}</li>`).join("");
-
-  if (d.state === "enabled" && m.length === d.expected) {
-    await update(teamRef, { state: "counting" });
-    startCountdown();
-  }
-
-  if (d.state === "revealed" && d.result) {
-    result.innerHTML = `🎉 ${d.result.title} – ${d.result.content}`;
-  }
+    if(d.state==="enabled" && m.length===d.expected){
+      await update(ref(db,`teams/${team}`),{state:"counting"});
+      startCountdown(team);
+    }
+    if(d.state==="revealed"){
+      result.innerHTML=`🎉 ${d.result.title} – ${d.result.content}`;
+    }
+  });
 });
 
-function startCountdown() {
-  let i = 3;
-  countdown.innerText = i;
-  const t = setInterval(async () => {
-    i--;
-    countdown.innerText = i || "🍀";
-    if (i <= 0) {
+function startCountdown(team){
+  let i=3; countdown.innerText=i;
+  const t=setInterval(async()=>{
+    i--; countdown.innerText=i||"🍀";
+    if(i<=0){
       clearInterval(t);
-      await reveal();
+      const rs=await get(ref(db,"config/rewards"));
+      const pool=[];
+      Object.values(rs.val()||{}).forEach(r=>{
+        for(let j=0;j<r.weight;j++) pool.push(r);
+      });
+      const pick=pool[Math.floor(Math.random()*pool.length)];
+      await update(ref(db,`teams/${team}`),{
+        state:"revealed",
+        result:pick
+      });
     }
-  }, 1000);
-}
-
-async function reveal() {
-  const snap = await get(ref(db, "config/rewards"));
-  const rewards = Object.values(snap.val() || []);
-  const pool = [];
-  rewards.forEach(r => { for (let i=0;i<r.weight;i++) pool.push(r); });
-  const pick = pool[Math.floor(Math.random()*pool.length)];
-
-  await update(teamRef, {
-    state: "revealed",
-    result: pick
-  });
+  },1000);
 }
 </script>
 </body>
