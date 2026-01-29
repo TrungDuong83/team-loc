@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>CHUNG TAY HÁI LỘC</title>
+<title>TEAM LỘC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -94,7 +94,7 @@ h1{margin:0 0 18px;font-size:30px}
 <body>
 
 <div class="card">
-  <h1>🍀 CHUNG TAY HÁI LỘC 🍀</h1>
+  <h1>🍀 TEAM LỘC 🍀</h1>
 
   <div class="info-box" id="infoBox">
     <div><span class="label">Bàn:</span> —</div>
@@ -142,21 +142,15 @@ let joined = false;
     if(prefix!=="TEAMLOC") throw "";
     tableId = String(id);
 
-    /* CHECK ACTIVE */
-    const activeId = String((await get(ref(db,"runtime/activeTableId"))).val()||"");
-    if(activeId !== tableId){
-      block("⏳ Chưa đến lượt bàn của bạn");
-      return;
-    }
-
     /* LOAD TEAM */
     const teamSnap = await get(ref(db,`config/teams/${tableId}`));
     const teamCfg = teamSnap.val();
-
     const teamRtSnap = await get(ref(db,`teams/${tableId}`));
     const team = teamRtSnap.val() || {};
 
-    renderInfo(teamCfg.name, team);
+    /*renderInfo(teamCfg.name, team);*/
+	renderInfo(teamCfg.name, team, teamCfg.defaultSize);
+
 
     /* BLOCK IF REVEALED */
     if(team.state === "revealed"){
@@ -165,12 +159,24 @@ let joined = false;
       return;
     }
 
+    /* CHECK ACTIVE */
+    const activeId = String((await get(ref(db,"runtime/activeTableId"))).val()||"");
+    if(activeId !== tableId){
+      block("⏳ Chưa đến lượt bàn của bạn");
+      return;
+    }
+
+    
+
+
+
     /* LISTEN REALTIME */
     onValue(ref(db,`teams/${tableId}`), snap=>{
       const data = snap.val();
       if(!data) return;
 
-      renderInfo(teamCfg.name, data);
+      renderInfo(teamCfg.name, data, teamCfg.defaultSize);
+
 
       if(data.state === "revealed"){
         block("🎉 Lượt chơi đã kết thúc");
@@ -196,14 +202,24 @@ joinBtn.onclick = async ()=>{
 };
 
 /* ===== UI ===== */
-function renderInfo(name, team){
+/*function renderInfo(name, team){
   const count = team.members ? Object.keys(team.members).length : 0;
   const total = team.total || teamCfg?.defaultSize || 0;
   infoBox.innerHTML = `
     <div><span class="label">Bàn:</span> ${name}</div>
     <div><span class="label">Tham gia:</span> ${count}/${total}</div>
   `;
+}*/
+function renderInfo(name, team, defaultSize){
+  const count = team.members ? Object.keys(team.members).length : 0;
+  const total = team.total || defaultSize || 0;
+
+  infoBox.innerHTML = `
+    <div><span class="label">Bàn:</span> ${name}</div>
+    <div><span class="label">Tham gia:</span> ${count}/${total}</div>
+  `;
 }
+
 function showResult(r){
   rewardText.innerText = `${r.title} – ${r.content}`;
   popup.classList.add("show");
@@ -225,4 +241,3 @@ function showSuccess(msg){
 
 </body>
 </html>
-
